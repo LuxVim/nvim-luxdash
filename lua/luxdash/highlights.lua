@@ -15,7 +15,7 @@ M.groups = {
   
   -- Sub section highlights (bottom sections)
   LuxDashSubTitle = { fg = '#4ec9b0', bold = true },
-  LuxDashSubSeparator = { fg = '#4ec9b0' },
+  LuxDashSubSeparator = { fg = '#d4d4d4' },
   
   -- Legacy section highlights (for compatibility)
   LuxDashSectionTitle = { fg = '#569cd6', bold = true },
