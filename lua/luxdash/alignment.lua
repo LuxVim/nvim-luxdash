@@ -1,22 +1,31 @@
 local M = {}
 
--- Align text horizontally within given width
-function M.align_text(text, width, alignment)
+-- Align text horizontally within given width with optional padding
+function M.align_text(text, width, alignment, padding)
   -- Ensure text is a string
   local text_str = tostring(text or '')
   local text_width = vim.fn.strwidth(text_str)
   
+  -- Apply padding if provided
+  local left_pad = padding and padding.left or 0
+  local right_pad = padding and padding.right or 0
+  local available_width = math.max(0, width - left_pad - right_pad)
+  
+  local result
   if alignment == 'left' then
-    local pad_right = math.max(0, width - text_width)
-    return text_str .. string.rep(' ', pad_right)
+    local pad_right = math.max(0, available_width - text_width)
+    result = text_str .. string.rep(' ', pad_right)
   elseif alignment == 'right' then
-    local pad_left = math.max(0, width - text_width)
-    return string.rep(' ', pad_left) .. text_str
+    local pad_left = math.max(0, available_width - text_width)
+    result = string.rep(' ', pad_left) .. text_str
   else -- center
-    local pad_left = math.max(0, math.floor((width - text_width) / 2))
-    local pad_right = math.max(0, width - pad_left - text_width)
-    return string.rep(' ', pad_left) .. text_str .. string.rep(' ', pad_right)
+    local pad_left = math.max(0, math.floor((available_width - text_width) / 2))
+    local pad_right = math.max(0, available_width - pad_left - text_width)
+    result = string.rep(' ', pad_left) .. text_str .. string.rep(' ', pad_right)
   end
+  
+  -- Add section padding
+  return string.rep(' ', left_pad) .. result .. string.rep(' ', right_pad)
 end
 
 -- Apply vertical alignment to content

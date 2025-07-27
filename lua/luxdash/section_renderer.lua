@@ -5,13 +5,19 @@ local alignment = require('luxdash.alignment')
 function M.render_section(section_module, width, height, config)
   config = config or {}
   
+  -- Section type determines highlight groups
+  local section_type = config.section_type or 'sub' -- 'main' or 'sub'
+  
   -- Default alignment settings
   local title_alignment = config.title_alignment or 'center'
   local content_alignment = config.content_alignment or 'center'
   local vertical_alignment = config.vertical_alignment or 'center'
   
-  -- Section type determines highlight groups
-  local section_type = config.section_type or 'sub' -- 'main' or 'sub'
+  -- Padding settings for subsections
+  local padding = nil
+  if section_type == 'sub' and config.padding then
+    padding = config.padding
+  end
   local title_hl = section_type == 'main' and 'LuxDashMainTitle' or 'LuxDashSubTitle'
   local separator_hl = section_type == 'main' and 'LuxDashMainSeparator' or 'LuxDashSubSeparator'
   
@@ -34,7 +40,7 @@ function M.render_section(section_module, width, height, config)
   
   -- Add title if configured
   if config.title and config.show_title ~= false then
-    local title_line = alignment.align_text(config.title, width, title_alignment)
+    local title_line = alignment.align_text(config.title, width, title_alignment, padding)
     table.insert(content, {title_hl, title_line})
     
     -- Add underline if configured
@@ -57,7 +63,7 @@ function M.render_section(section_module, width, height, config)
       if #line >= 2 and type(line[1]) == 'string' and type(line[2]) == 'string' then
         -- Simple format: {highlight, text}
         local text = line[2]
-        local aligned_text = alignment.align_text(text, width, content_alignment)
+        local aligned_text = alignment.align_text(text, width, content_alignment, padding)
         table.insert(content, {line[1], aligned_text})
       elseif #line > 0 and type(line[1]) == 'table' then
         -- Complex format: {{highlight, text}, {highlight, text}, ...}
@@ -66,13 +72,13 @@ function M.render_section(section_module, width, height, config)
       else
         -- Unknown table format - convert to string
         local text = tostring(line)
-        local aligned_text = alignment.align_text(text, width, content_alignment)
+        local aligned_text = alignment.align_text(text, width, content_alignment, padding)
         table.insert(content, aligned_text)
       end
     else
       -- Plain text line
       local text = tostring(line or '')
-      local aligned_text = alignment.align_text(text, width, content_alignment)
+      local aligned_text = alignment.align_text(text, width, content_alignment, padding)
       table.insert(content, aligned_text)
     end
   end

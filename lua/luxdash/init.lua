@@ -36,8 +36,9 @@ M.config = {
         horizontal = 'center', 
         vertical = 'center',
         title_horizontal = 'center',
-        content_horizontal = 'center'
+        content_horizontal = 'left'
       },
+      padding = { left = 2, right = 2 },
       title = '󰋚 Recent Files',
       show_title = true
     },
@@ -46,8 +47,9 @@ M.config = {
         horizontal = 'center', 
         vertical = 'center',
         title_horizontal = 'center',
-        content_horizontal = 'center'
+        content_horizontal = 'left'
       },
+      padding = { left = 2, right = 2 },
       title = '󰊢 Git Status',
       show_title = true
     },
