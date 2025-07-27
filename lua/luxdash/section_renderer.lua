@@ -41,17 +41,6 @@ function M.render_section(section_module, width, height, config)
       local underline_width = width
       local underline = string.rep('─', underline_width)
       
-      -- For sub-sections, ensure consistent alignment by using the full width
-      -- but with a consistent pattern regardless of content length
-      if config.section_type == 'sub' then
-        -- Use a shorter underline but consistently centered
-        local sub_underline_width = math.max(1, math.min(width - 4, 20))
-        local gap_size = math.floor((width - sub_underline_width) / 2)
-        local left_gap = string.rep(' ', gap_size)
-        local right_gap = string.rep(' ', width - sub_underline_width - gap_size)
-        underline = left_gap .. string.rep('─', sub_underline_width) .. right_gap
-      end
-      
       table.insert(content, {separator_hl, underline})
     end
     

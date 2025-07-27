@@ -189,7 +189,26 @@ function M.build()
     local bottom_center_line = bottom_center_content[i] or string.rep(' ', layout.bottom.center.width)
     local bottom_right_line = bottom_right_content[i] or string.rep(' ', layout.bottom.right.width)
     
-    local combined_line = M.combine_line_parts({bottom_left_line, bottom_center_line, bottom_right_line})
+    -- Check if this is an underline row (contains '─' characters)
+    local is_underline_row = false
+    if type(bottom_left_line) == 'table' and bottom_left_line[2] and string.find(bottom_left_line[2], '─') then
+      is_underline_row = true
+    elseif type(bottom_center_line) == 'table' and bottom_center_line[2] and string.find(bottom_center_line[2], '─') then
+      is_underline_row = true
+    elseif type(bottom_right_line) == 'table' and bottom_right_line[2] and string.find(bottom_right_line[2], '─') then
+      is_underline_row = true
+    end
+    
+    local combined_line
+    if is_underline_row then
+      -- Add vertical separators only on underline rows
+      local separator = {'LuxDashSubSeparator', '│'}
+      combined_line = M.combine_line_parts({bottom_left_line, separator, bottom_center_line, separator, bottom_right_line})
+    else
+      -- No separators on regular content rows
+      combined_line = M.combine_line_parts({bottom_left_line, bottom_center_line, bottom_right_line})
+    end
+    
     table.insert(dashboard, combined_line)
   end
 end
