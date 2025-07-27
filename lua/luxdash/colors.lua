@@ -49,6 +49,28 @@ function M.apply_logo_color(logo, color_config)
       end
     end
     
+  elseif color_config.row_gradient and color_config.row_gradient.start and color_config.row_gradient.bottom then
+    local start_color = color_config.row_gradient.start
+    local end_color = color_config.row_gradient.bottom
+    local logo_lines = #logo
+    
+    -- Clear any existing logo highlight groups to prevent interference
+    vim.api.nvim_set_hl(0, 'LuxDashLogo', {})
+    
+    for i, line in ipairs(logo) do
+      if line == '' or vim.fn.strwidth(line) == 0 then
+        table.insert(colored_logo, line)
+      else
+        local ratio = (i - 1) / math.max(1, logo_lines - 1)
+        local hl_name = 'LuxDashLogoRowGradient' .. i
+        
+        local interpolated_color = M.interpolate_color(start_color, end_color, ratio)
+        vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
+        
+        table.insert(colored_logo, {hl_name, line})
+      end
+    end
+    
   else
     return logo
   end
