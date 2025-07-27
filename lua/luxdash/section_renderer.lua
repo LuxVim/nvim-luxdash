@@ -38,21 +38,21 @@ function M.render_section(section_module, width, height, config)
     
     -- Add underline if configured
     if config.show_underline ~= false then
-      -- For horizontal sections, create visual separation by using shorter underlines
       local underline_width = width
+      local underline = string.rep('─', underline_width)
+      
+      -- For sub-sections, ensure consistent alignment by using the full width
+      -- but with a consistent pattern regardless of content length
       if config.section_type == 'sub' then
-        -- Reduce underline width significantly for sub-sections to create visual gaps
-        underline_width = math.max(1, width - 4)
+        -- Use a shorter underline but consistently centered
+        local sub_underline_width = math.max(1, math.min(width - 4, 20))
+        local gap_size = math.floor((width - sub_underline_width) / 2)
+        local left_gap = string.rep(' ', gap_size)
+        local right_gap = string.rep(' ', width - sub_underline_width - gap_size)
+        underline = left_gap .. string.rep('─', sub_underline_width) .. right_gap
       end
       
-      local underline = string.rep('─', underline_width)
-      -- Create the full-width line with gaps on the sides
-      local gap_size = math.floor((width - underline_width) / 2)
-      local left_gap = string.rep(' ', gap_size)
-      local right_gap = string.rep(' ', width - underline_width - gap_size)
-      local spaced_underline = left_gap .. underline .. right_gap
-      
-      table.insert(content, {separator_hl, spaced_underline})
+      table.insert(content, {separator_hl, underline})
     end
     
     -- Add spacing after title/underline
@@ -76,7 +76,7 @@ function M.render_section(section_module, width, height, config)
   end
   
   -- Apply vertical alignment
-  return M.apply_vertical_alignment(content, width, height, vertical_alignment)
+  return M.apply_vertical_alignment(content, width, height, vertical_alignment, section_type)
 end
 
 -- Align text horizontally within given width
@@ -97,17 +97,23 @@ function M.align_text(text, width, alignment)
 end
 
 -- Apply vertical alignment to content
-function M.apply_vertical_alignment(content, width, height, alignment)
+function M.apply_vertical_alignment(content, width, height, alignment, section_type)
   local content_height = #content
   local pad_top = 0
   
-  -- Calculate vertical padding
-  if alignment == 'top' then
+  -- For sub-sections (bottom area), always use top alignment to ensure consistent title positioning
+  -- regardless of varying content lengths between sections
+  if section_type == 'sub' then
     pad_top = 0
-  elseif alignment == 'bottom' then
-    pad_top = math.max(0, height - content_height)
-  else -- center
-    pad_top = math.max(0, math.floor((height - content_height) / 2))
+  else
+    -- Calculate vertical padding for main sections
+    if alignment == 'top' then
+      pad_top = 0
+    elseif alignment == 'bottom' then
+      pad_top = math.max(0, height - content_height)
+    else -- center
+      pad_top = math.max(0, math.floor((height - content_height) / 2))
+    end
   end
   
   local aligned = {}
