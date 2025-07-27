@@ -26,12 +26,71 @@ M.config = {
     preset = nil,
     gradient = nil
   },
-  options = {},
-  extras = {}
+  options = { 'newfile', 'backtrack', 'fzf', 'closelux' },
+  extras = {},
+  bottom_sections = {'recent_files', 'git_status', 'empty'},
+  section_configs = {
+    recent_files = { 
+      max_files = 10,
+      alignment = { 
+        horizontal = 'center', 
+        vertical = 'center',
+        title_horizontal = 'center',
+        content_horizontal = 'center'
+      },
+      title = '󰋚 Recent Files',
+      show_title = true
+    },
+    git_status = {
+      alignment = { 
+        horizontal = 'center', 
+        vertical = 'center',
+        title_horizontal = 'center',
+        content_horizontal = 'center'
+      },
+      title = '󰊢 Git Status',
+      show_title = true
+    },
+    empty = {
+      alignment = { 
+        horizontal = 'center', 
+        vertical = 'center'
+      }
+    }
+  },
+  alignment = {
+    logo = { horizontal = 'center', vertical = 'center' },
+    menu = { horizontal = 'center', vertical = 'center' }
+  },
+  float = {
+    width = 0.9,
+    height = 0.9,
+    border = 'rounded',
+    title = ' LuxDash ',
+    title_pos = 'center',
+    hide_buffer = false
+  },
+  padding = {
+    left = 2,
+    right = 2,
+    top = 1,
+    bottom = 1
+  }
 }
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend('force', M.config, opts or {})
+  
+  -- Setup highlights
+  local highlights = require('luxdash.highlights')
+  highlights.setup()
+  
+  local float = require('luxdash.float')
+  float.setup(M.config.float or {})
+  
+  vim.api.nvim_create_user_command('LuxDash', function()
+    float.toggle()
+  end, { desc = 'Toggle LuxDash floating window' })
   
   local group = vim.api.nvim_create_augroup('LuxDash', { clear = true })
   
@@ -107,6 +166,10 @@ end
 
 function M.open()
   require('luxdash.core').open()
+end
+
+function M.toggle()
+  require('luxdash.float').toggle()
 end
 
 return M

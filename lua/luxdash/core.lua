@@ -1,6 +1,8 @@
 local M             = {}
 local buffer        = require('luxdash.buffer')
 local menu          = require('luxdash.menu')
+local sections      = require('luxdash.sections')
+local section_renderer = require('luxdash.section_renderer')
 local dashboard     = {}
 local color_presets = {
   blue = '#569cd6',
@@ -88,6 +90,12 @@ function M.interpolate_color(color1, color2, ratio)
 end
 
 function M.open()
+  local float = require('luxdash.float')
+  if float.is_open() then
+    float.close()
+    return
+  end
+  
   buffer.create()
   M.build()
   M.draw()
@@ -95,74 +103,94 @@ end
 
 function M.build()
   local config = require('luxdash').config
-  local logo = M.apply_logo_color(config.logo or {}, config.logo_color)
+  local winheight = vim.api.nvim_win_get_height(0)
+  local winwidth = vim.api.nvim_win_get_width(0)
+  
+  local is_float_buffer = vim.api.nvim_buf_get_option(0, 'filetype') == 'luxdash'
+  
+  -- Apply buffer padding
+  local padding = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
+  local content_width = winwidth - padding.left - padding.right
+  local content_height = winheight - padding.top - padding.bottom
+  
+  local layout = sections.calculate_layout(content_height, content_width)
+  
   local menu_items = menu.options(config.options or {})
   local extras = config.extras or {}
-  local layout = config.layout or 'horizontal'
   
-  local right = {}
-  for _, item in ipairs(menu_items) do
-    table.insert(right, item)
-  end
-  for _, extra in ipairs(extras) do
-    table.insert(right, extra)
-  end
+  local logo_section = sections.load_section('logo')
+  local menu_section = sections.load_section('menu')
+  
+  local top_left_content = section_renderer.render_section(logo_section, layout.top.left.width, layout.top.left.height, {
+    logo = config.logo,
+    logo_color = config.logo_color,
+    section_type = 'main',
+    title_alignment = 'center',
+    content_alignment = 'center',
+    vertical_alignment = 'center',
+    show_title = false,
+    show_underline = false
+  })
+  
+  local top_right_content = section_renderer.render_section(menu_section, layout.top.right.width, layout.top.right.height, {
+    menu_items = menu_items,
+    extras = extras,
+    section_type = 'main',
+    title_alignment = 'center',
+    content_alignment = 'center',
+    vertical_alignment = 'center',
+    show_title = false,
+    show_underline = false
+  })
+  
+  local bottom_sections = config.bottom_sections or {'recent_files', 'git_status', 'empty'}
+  local bottom_left_section = sections.load_section(bottom_sections[1] or 'empty')
+  local bottom_center_section = sections.load_section(bottom_sections[2] or 'empty')
+  local bottom_right_section = sections.load_section(bottom_sections[3] or 'empty')
+  
+  -- Convert section configs to new format and add section_type
+  local bottom_left_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[1]] or {}, {
+    section_type = 'sub',
+    title_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.title_horizontal or 'center',
+    content_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.content_horizontal or 'center',
+    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.vertical or 'center'
+  })
+  
+  local bottom_center_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[2]] or {}, {
+    section_type = 'sub',
+    title_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.title_horizontal or 'center',
+    content_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.content_horizontal or 'center',
+    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.vertical or 'center'
+  })
+  
+  local bottom_right_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[3]] or {}, {
+    section_type = 'sub',
+    title_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.title_horizontal or 'center',
+    content_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.content_horizontal or 'center',
+    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.vertical or 'center'
+  })
+
+  local bottom_left_content = section_renderer.render_section(bottom_left_section, layout.bottom.left.width, layout.bottom.left.height, bottom_left_config)
+  local bottom_center_content = section_renderer.render_section(bottom_center_section, layout.bottom.center.width, layout.bottom.center.height, bottom_center_config)
+  local bottom_right_content = section_renderer.render_section(bottom_right_section, layout.bottom.right.width, layout.bottom.right.height, bottom_right_config)
   
   dashboard = {}
   
-  if layout == 'vertical' then
-    for _, line in ipairs(logo) do
-      table.insert(dashboard, line)
-    end
+  for i = 1, layout.top.height do
+    local top_left_line = top_left_content[i] or string.rep(' ', layout.top.left.width)
+    local top_right_line = top_right_content[i] or string.rep(' ', layout.top.right.width)
     
-    table.insert(dashboard, '')
+    local combined_line = M.combine_line_parts({top_left_line, top_right_line})
+    table.insert(dashboard, combined_line)
+  end
+  
+  for i = 1, layout.bottom.height do
+    local bottom_left_line = bottom_left_content[i] or string.rep(' ', layout.bottom.left.width)
+    local bottom_center_line = bottom_center_content[i] or string.rep(' ', layout.bottom.center.width)
+    local bottom_right_line = bottom_right_content[i] or string.rep(' ', layout.bottom.right.width)
     
-    for _, line in ipairs(right) do
-      table.insert(dashboard, line)
-    end
-  else
-    local logo_lines = #logo
-    local right_lines = #right
-    
-    if logo_lines > right_lines then
-      local pad_total = logo_lines - right_lines
-      local pad_top = math.floor(pad_total / 2)
-      local pad_bot = pad_total - pad_top
-      
-      for _ = 1, pad_top do
-        table.insert(right, 1, '')
-      end
-      for _ = 1, pad_bot do
-        table.insert(right, '')
-      end
-    else
-      for _ = logo_lines + 1, right_lines do
-        table.insert(logo, '')
-      end
-    end
-    
-    local logo_width = 0
-    for _, line in ipairs(logo) do
-      local line_text = type(line) == 'table' and line[2] or line
-      logo_width = math.max(logo_width, vim.fn.strwidth(line_text))
-    end
-    local pad = 4
-    
-    for i = 1, math.max(#logo, #right) do
-      local logo_line = logo[i] or ''
-      local logo_line_text = type(logo_line) == 'table' and logo_line[2] or logo_line
-      local logo_hl_group = type(logo_line) == 'table' and logo_line[1] or nil
-      local right_line = right[i] or ''
-      local padding = string.rep(' ', math.max(0, logo_width - vim.fn.strwidth(logo_line_text)))
-      local row = logo_line_text .. padding .. string.rep(' ', pad) .. right_line
-      
-      -- Preserve gradient highlight information if present
-      if logo_hl_group then
-        table.insert(dashboard, {logo_hl_group, row})
-      else
-        table.insert(dashboard, row)
-      end
-    end
+    local combined_line = M.combine_line_parts({bottom_left_line, bottom_center_line, bottom_right_line})
+    table.insert(dashboard, combined_line)
   end
 end
 
@@ -179,58 +207,198 @@ function M.draw()
 end
 
 function M.print()
+  local config = require('luxdash').config
   local winheight = vim.api.nvim_win_get_height(0)
   local winwidth = vim.api.nvim_win_get_width(0)
-  local pad_top = math.max(0, math.floor((winheight - #dashboard) / 2))
+  
+  -- Apply buffer padding
+  local padding = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
+  local content_width = winwidth - padding.left - padding.right
+  local content_height = winheight - padding.top - padding.bottom
   
   local table_width = 0
   for _, line in ipairs(dashboard) do
-    local line_text = type(line) == 'table' and line[2] or line
+    local line_text = type(line) == 'table' and line[1] or line
     table_width = math.max(table_width, vim.fn.strwidth(line_text))
   end
-  local pad_left = math.floor((winwidth - table_width) / 2)
+  local pad_left = padding.left + math.floor((content_width - table_width) / 2)
+  local pad_top = padding.top + math.max(0, math.floor((content_height - #dashboard) / 2))
   
   local lines = {}
-  local highlights = {}
+  local all_highlights = {}
   
   for _ = 1, pad_top do
     table.insert(lines, '')
   end
   
   for _, line in ipairs(dashboard) do
-    if type(line) == 'table' and line[1] and line[2] then
-      local hl_group = line[1]
-      local text = line[2]
-      local padded_text = string.rep(' ', pad_left) .. text
-      table.insert(lines, padded_text)
-      table.insert(highlights, {
-        line_num = #lines,
-        start_col = pad_left,
-        end_col = pad_left + vim.fn.strwidth(text),
-        hl_group = hl_group
-      })
+    if type(line) == 'table' then
+      -- Check if it's a complex multi-highlight structure
+      if #line > 0 and type(line[1]) == 'table' then
+        -- Complex format: {{highlight, text}, {highlight, text}, ...}
+        local combined = M.combine_line_parts({line})
+        local text = combined[1] or combined
+        local highlights = type(combined) == 'table' and combined[2] or {}
+        local padded_text = string.rep(' ', pad_left) .. text
+        table.insert(lines, padded_text)
+        
+        if type(highlights) == 'table' then
+          for _, hl in ipairs(highlights) do
+            if hl.hl_group and type(hl.hl_group) == 'string' then
+              table.insert(all_highlights, {
+                line_num = #lines,
+                start_col = pad_left + hl.start_col,
+                end_col = pad_left + hl.end_col,
+                hl_group = hl.hl_group
+              })
+            end
+          end
+        end
+      elseif line[2] then
+        -- Detect format: {highlight, text} vs {text, highlights}
+        local text, highlight_group
+        if type(line[1]) == 'string' and type(line[2]) == 'string' then
+          -- Format: {highlight, text}
+          highlight_group = line[1]
+          text = line[2]
+        else
+          -- Format: {text, highlights}
+          text = line[1]
+          local highlights = line[2]
+        end
+        
+        local padded_text = string.rep(' ', pad_left) .. tostring(text)
+        table.insert(lines, padded_text)
+        
+        if highlight_group and type(highlight_group) == 'string' then
+          -- Simple highlight for the entire line
+          table.insert(all_highlights, {
+            line_num = #lines,
+            start_col = pad_left,
+            end_col = pad_left + vim.fn.strwidth(tostring(text)),
+            hl_group = highlight_group
+          })
+        elseif type(line[2]) == 'table' then
+          -- Complex highlights array
+          for _, hl in ipairs(line[2]) do
+            if hl.hl_group and type(hl.hl_group) == 'string' then
+              table.insert(all_highlights, {
+                line_num = #lines,
+                start_col = pad_left + hl.start_col,
+                end_col = pad_left + hl.end_col,
+                hl_group = hl.hl_group
+              })
+            end
+          end
+        end
+      else
+        -- Fallback to string representation
+        local line_text = tostring(line)
+        table.insert(lines, string.rep(' ', pad_left) .. line_text)
+      end
     else
-      local line_text = type(line) == 'table' and line[2] or line
+      local line_text = tostring(line or '')
       table.insert(lines, string.rep(' ', pad_left) .. line_text)
     end
   end
   
   vim.api.nvim_buf_set_lines(0, 0, 0, false, lines)
   
-  for _, hl in ipairs(highlights) do
-    vim.api.nvim_buf_add_highlight(0, -1, hl.hl_group, hl.line_num - 1, hl.start_col, hl.end_col)
+  for _, hl in ipairs(all_highlights) do
+    -- Validate highlight bounds
+    local line_idx = hl.line_num - 1
+    if line_idx >= 0 and line_idx < #lines then
+      local line_text = lines[line_idx + 1] or ''
+      local line_length = vim.fn.strwidth(line_text)
+      local start_col = math.max(0, math.min(hl.start_col, line_length))
+      local end_col = math.max(start_col, math.min(hl.end_col, line_length))
+      
+      if start_col < end_col then
+        vim.api.nvim_buf_add_highlight(0, -1, hl.hl_group, line_idx, start_col, end_col)
+      end
+    end
   end
 end
 
 function M.resize()
   for _, winnr in ipairs(vim.api.nvim_list_wins()) do
-    local bufnr = vim.api.nvim_win_get_buf(winnr)
-    if vim.api.nvim_buf_get_option(bufnr, 'filetype') == 'luxdash' then
-      local current_win = vim.api.nvim_get_current_win()
-      vim.api.nvim_set_current_win(winnr)
-      M.draw()
-      vim.api.nvim_set_current_win(current_win)
+    if vim.api.nvim_win_is_valid(winnr) then
+      local bufnr = vim.api.nvim_win_get_buf(winnr)
+      if vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_option(bufnr, 'filetype') == 'luxdash' then
+        local current_win = vim.api.nvim_get_current_win()
+        local ok, _ = pcall(function()
+          vim.api.nvim_set_current_win(winnr)
+          M.build()
+          M.draw()
+          vim.api.nvim_set_current_win(current_win)
+        end)
+        if not ok then
+          -- If resize fails, restore current window
+          if vim.api.nvim_win_is_valid(current_win) then
+            vim.api.nvim_set_current_win(current_win)
+          end
+        end
+      end
     end
+  end
+end
+
+function M.combine_line_parts(parts)
+  local combined_text = ''
+  local highlights = {}
+  local col_offset = 0
+  
+  for _, part in ipairs(parts) do
+    if type(part) == 'table' then
+      if #part >= 2 and type(part[1]) == 'string' then
+        -- Simple format: {highlight, text}
+        local part_text = tostring(part[2] or '')
+        local part_hl = part[1]
+        
+        combined_text = combined_text .. part_text
+        
+        if part_hl and type(part_hl) == 'string' then
+          table.insert(highlights, {
+            hl_group = part_hl,
+            start_col = col_offset,
+            end_col = col_offset + vim.fn.strwidth(part_text)
+          })
+        end
+        
+        col_offset = col_offset + vim.fn.strwidth(part_text)
+      elseif #part > 0 and type(part[1]) == 'table' then
+        -- Complex format: {{highlight, text}, {highlight, text}, ...}
+        for _, subpart in ipairs(part) do
+          if type(subpart) == 'table' and #subpart >= 2 then
+            local subpart_text = tostring(subpart[2] or '')
+            local subpart_hl = subpart[1]
+            
+            combined_text = combined_text .. subpart_text
+            
+            if subpart_hl and type(subpart_hl) == 'string' then
+              table.insert(highlights, {
+                hl_group = subpart_hl,
+                start_col = col_offset,
+                end_col = col_offset + vim.fn.strwidth(subpart_text)
+              })
+            end
+            
+            col_offset = col_offset + vim.fn.strwidth(subpart_text)
+          end
+        end
+      end
+    else
+      -- Plain text
+      local part_text = tostring(part)
+      combined_text = combined_text .. part_text
+      col_offset = col_offset + vim.fn.strwidth(part_text)
+    end
+  end
+  
+  if #highlights > 0 then
+    return {combined_text, highlights}
+  else
+    return combined_text
   end
 end
 
