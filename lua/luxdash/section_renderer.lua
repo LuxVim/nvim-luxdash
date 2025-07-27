@@ -1,4 +1,5 @@
 local M = {}
+local alignment = require('luxdash.alignment')
 
 -- Standardized section renderer that handles title, underline, and content with proper alignment
 function M.render_section(section_module, width, height, config)
@@ -33,7 +34,7 @@ function M.render_section(section_module, width, height, config)
   
   -- Add title if configured
   if config.title and config.show_title ~= false then
-    local title_line = M.align_text(config.title, width, title_alignment)
+    local title_line = alignment.align_text(config.title, width, title_alignment)
     table.insert(content, {title_hl, title_line})
     
     -- Add underline if configured
@@ -52,78 +53,32 @@ function M.render_section(section_module, width, height, config)
   
   -- Process and add section content
   for _, line in ipairs(raw_content) do
-    if type(line) == 'table' and #line >= 2 then
-      -- Line with highlight: {highlight, text}
-      local aligned_text = M.align_text(line[2], width, content_alignment)
-      table.insert(content, {line[1], aligned_text})
+    if type(line) == 'table' then
+      if #line >= 2 and type(line[1]) == 'string' and type(line[2]) == 'string' then
+        -- Simple format: {highlight, text}
+        local text = line[2]
+        local aligned_text = alignment.align_text(text, width, content_alignment)
+        table.insert(content, {line[1], aligned_text})
+      elseif #line > 0 and type(line[1]) == 'table' then
+        -- Complex format: {{highlight, text}, {highlight, text}, ...}
+        -- For now, pass through as-is since alignment is handled at render time
+        table.insert(content, line)
+      else
+        -- Unknown table format - convert to string
+        local text = tostring(line)
+        local aligned_text = alignment.align_text(text, width, content_alignment)
+        table.insert(content, aligned_text)
+      end
     else
       -- Plain text line
       local text = tostring(line or '')
-      local aligned_text = M.align_text(text, width, content_alignment)
+      local aligned_text = alignment.align_text(text, width, content_alignment)
       table.insert(content, aligned_text)
     end
   end
   
   -- Apply vertical alignment
-  return M.apply_vertical_alignment(content, width, height, vertical_alignment, section_type)
-end
-
--- Align text horizontally within given width
-function M.align_text(text, width, alignment)
-  local text_width = vim.fn.strwidth(text)
-  
-  if alignment == 'left' then
-    local pad_right = math.max(0, width - text_width)
-    return text .. string.rep(' ', pad_right)
-  elseif alignment == 'right' then
-    local pad_left = math.max(0, width - text_width)
-    return string.rep(' ', pad_left) .. text
-  else -- center
-    local pad_left = math.max(0, math.floor((width - text_width) / 2))
-    local pad_right = math.max(0, width - pad_left - text_width)
-    return string.rep(' ', pad_left) .. text .. string.rep(' ', pad_right)
-  end
-end
-
--- Apply vertical alignment to content
-function M.apply_vertical_alignment(content, width, height, alignment, section_type)
-  local content_height = #content
-  local pad_top = 0
-  
-  -- For sub-sections (bottom area), always use top alignment to ensure consistent title positioning
-  -- regardless of varying content lengths between sections
-  if section_type == 'sub' then
-    pad_top = 0
-  else
-    -- Calculate vertical padding for main sections
-    if alignment == 'top' then
-      pad_top = 0
-    elseif alignment == 'bottom' then
-      pad_top = math.max(0, height - content_height)
-    else -- center
-      pad_top = math.max(0, math.floor((height - content_height) / 2))
-    end
-  end
-  
-  local aligned = {}
-  
-  -- Add top padding
-  for _ = 1, pad_top do
-    table.insert(aligned, string.rep(' ', width))
-  end
-  
-  -- Add content
-  for _, line in ipairs(content) do
-    table.insert(aligned, line)
-  end
-  
-  -- Add bottom padding
-  local remaining_lines = height - #aligned
-  for _ = 1, remaining_lines do
-    table.insert(aligned, string.rep(' ', width))
-  end
-  
-  return aligned
+  return alignment.apply_vertical_alignment(content, width, height, vertical_alignment, section_type)
 end
 
 return M

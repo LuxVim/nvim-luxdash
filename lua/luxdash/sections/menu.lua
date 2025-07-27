@@ -1,10 +1,8 @@
 local M = {}
-local alignment = require('luxdash.alignment')
 
 function M.render(width, height, config)
   local menu_items = config.menu_items or {}
   local extras = config.extras or {}
-  local alignment_config = config.alignment or { horizontal = 'center', vertical = 'center' }
   
   local content = {}
   
@@ -20,7 +18,7 @@ function M.render(width, height, config)
     table.insert(content, '')
   end
   
-  return alignment.align_content(content, width, height, alignment_config)
+  return content
 end
 
 return M
