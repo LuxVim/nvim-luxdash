@@ -40,7 +40,7 @@ function M.build()
   local logo_section = layout.load_section('logo')
   local menu_section = layout.load_section('menu')
   
-  local top_left_content = section_renderer.render_section(logo_section, layout_data.top.left.width, layout_data.top.left.height, {
+  local main_content = section_renderer.render_section(logo_section, layout_data.main.width, layout_data.main.height, {
     logo = config.logo,
     logo_color = config.logo_color,
     section_type = 'main',
@@ -51,36 +51,51 @@ function M.build()
     show_underline = false
   })
   
-  local top_right_content = section_renderer.render_section(menu_section, layout_data.top.right.width, layout_data.top.right.height, {
-    menu_items = menu_items,
-    extras = extras,
-    section_type = 'main',
-    title_alignment = 'center',
-    content_alignment = 'center',
-    vertical_alignment = 'center',
-    show_title = false,
-    show_underline = false
-  })
-  
-  local bottom_sections = config.bottom_sections or {'recent_files', 'git_status', 'empty'}
-  local bottom_left_section = layout.load_section(bottom_sections[1] or 'empty')
-  local bottom_center_section = layout.load_section(bottom_sections[2] or 'empty')
+  local bottom_sections = config.bottom_sections or {'menu', 'recent_files', 'git_status'}
+  local bottom_left_section = bottom_sections[1] == 'menu' and menu_section or layout.load_section(bottom_sections[1] or 'empty')
+  local bottom_center_section = bottom_sections[2] == 'menu' and menu_section or layout.load_section(bottom_sections[2] or 'empty')
   local bottom_right_section = layout.load_section(bottom_sections[3] or 'empty')
   
   -- Convert section configs to new format and add section_type
-  local bottom_left_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[1]] or {}, {
-    section_type = 'sub',
-    title_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.title_horizontal or 'center',
-    content_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.content_horizontal or 'center',
-    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.vertical or 'center'
-  })
+  local bottom_left_config
+  if bottom_sections[1] == 'menu' then
+    bottom_left_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs.menu or {}, {
+      menu_items = menu_items,
+      extras = extras,
+      section_type = 'sub',
+      title_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.title_horizontal or 'center',
+      content_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.content_horizontal or 'center',
+      vertical_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.vertical or 'center'
+    })
+  else
+    bottom_left_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[1]] or {}, {
+      section_type = 'sub',
+      title_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.title_horizontal or 'center',
+      content_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.content_horizontal or 'center',
+      vertical_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.vertical or 'center'
+    })
+  end
   
-  local bottom_center_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[2]] or {}, {
-    section_type = 'sub',
-    title_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.title_horizontal or 'center',
-    content_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.content_horizontal or 'center',
-    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.vertical or 'center'
-  })
+  local bottom_center_config
+  if bottom_sections[2] == 'menu' then
+    bottom_center_config = {
+      menu_items = menu_items,
+      extras = extras,
+      section_type = 'sub',
+      title_alignment = 'center',
+      content_alignment = 'center',
+      vertical_alignment = 'center',
+      show_title = false,
+      show_underline = false
+    }
+  else
+    bottom_center_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[2]] or {}, {
+      section_type = 'sub',
+      title_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.title_horizontal or 'center',
+      content_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.content_horizontal or 'center',
+      vertical_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.vertical or 'center'
+    })
+  end
   
   local bottom_right_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[3]] or {}, {
     section_type = 'sub',
@@ -95,26 +110,70 @@ function M.build()
   
   dashboard = {}
   
-  for i = 1, layout_data.top.height do
-    local top_left_line = top_left_content[i] or string.rep(' ', layout_data.top.left.width)
-    local top_right_line = top_right_content[i] or string.rep(' ', layout_data.top.right.width)
-    
-    local combined_line = line_utils.combine_line_parts({top_left_line, top_right_line})
-    table.insert(dashboard, combined_line)
+  -- Add main section (logo) lines
+  for i = 1, layout_data.main.height do
+    local main_line = main_content[i] or string.rep(' ', layout_data.main.width)
+    table.insert(dashboard, main_line)
   end
   
+  -- Helper function to ensure exact width
+  local function ensure_exact_width(line, target_width)
+    if type(line) == 'table' then
+      if line[2] then
+        -- Format: {highlight, text}
+        local text = tostring(line[2])
+        local text_width = vim.fn.strwidth(text)
+        if text_width < target_width then
+          return {line[1], text .. string.rep(' ', target_width - text_width)}
+        elseif text_width > target_width then
+          return {line[1], vim.fn.strpart(text, 0, target_width)}
+        end
+        return line
+      elseif #line > 0 and type(line[1]) == 'table' then
+        -- Complex format: {{highlight, text}, {highlight, text}, ...}
+        -- For now, just return as-is to avoid corruption - let line_utils handle it
+        return line
+      else
+        -- Fallback for unknown table format
+        local text = tostring(line)
+        local text_width = vim.fn.strwidth(text)
+        if text_width < target_width then
+          return text .. string.rep(' ', target_width - text_width)
+        elseif text_width > target_width then
+          return vim.fn.strpart(text, 0, target_width)
+        end
+        return text
+      end
+    else
+      -- Plain text
+      local text = tostring(line)
+      local text_width = vim.fn.strwidth(text)
+      if text_width < target_width then
+        return text .. string.rep(' ', target_width - text_width)
+      elseif text_width > target_width then
+        return vim.fn.strpart(text, 0, target_width)
+      end
+      return text
+    end
+  end
+
   for i = 1, layout_data.bottom.height do
     local bottom_left_line = bottom_left_content[i] or string.rep(' ', layout_data.bottom.left.width)
     local bottom_center_line = bottom_center_content[i] or string.rep(' ', layout_data.bottom.center.width)
     local bottom_right_line = bottom_right_content[i] or string.rep(' ', layout_data.bottom.right.width)
     
+    -- Ensure each section is exactly its allocated width
+    bottom_left_line = ensure_exact_width(bottom_left_line, layout_data.bottom.left.width)
+    bottom_center_line = ensure_exact_width(bottom_center_line, layout_data.bottom.center.width)
+    bottom_right_line = ensure_exact_width(bottom_right_line, layout_data.bottom.right.width)
+    
     -- Check if this is an underline row (contains '─' characters)
     local is_underline_row = false
-    if type(bottom_left_line) == 'table' and bottom_left_line[2] and string.find(bottom_left_line[2], '─') then
+    if type(bottom_left_line) == 'table' and bottom_left_line[2] and type(bottom_left_line[2]) == 'string' and string.find(bottom_left_line[2], '─') then
       is_underline_row = true
-    elseif type(bottom_center_line) == 'table' and bottom_center_line[2] and string.find(bottom_center_line[2], '─') then
+    elseif type(bottom_center_line) == 'table' and bottom_center_line[2] and type(bottom_center_line[2]) == 'string' and string.find(bottom_center_line[2], '─') then
       is_underline_row = true
-    elseif type(bottom_right_line) == 'table' and bottom_right_line[2] and string.find(bottom_right_line[2], '─') then
+    elseif type(bottom_right_line) == 'table' and bottom_right_line[2] and type(bottom_right_line[2]) == 'string' and string.find(bottom_right_line[2], '─') then
       is_underline_row = true
     end
     
@@ -124,8 +183,9 @@ function M.build()
       local separator = {'LuxDashSubSeparator', '│'}
       combined_line = line_utils.combine_line_parts({bottom_left_line, separator, bottom_center_line, separator, bottom_right_line})
     else
-      -- No separators on regular content rows
-      combined_line = line_utils.combine_line_parts({bottom_left_line, bottom_center_line, bottom_right_line})
+      -- Add spacing between sections on regular content rows
+      local spacer = string.rep(' ', 2)  -- 2 spaces between sections
+      combined_line = line_utils.combine_line_parts({bottom_left_line, spacer, bottom_center_line, spacer, bottom_right_line})
     end
     
     table.insert(dashboard, combined_line)
@@ -185,7 +245,36 @@ function M.print()
   
   vim.api.nvim_buf_set_lines(0, 0, 0, false, lines)
   
-  line_utils.apply_highlights(all_highlights, lines)
+  -- Clear all existing highlights first
+  vim.api.nvim_buf_clear_namespace(0, -1, 0, -1)
+  
+  -- Create separate namespaces for different highlight types
+  local logo_ns = vim.api.nvim_create_namespace('luxdash_logo')
+  local menu_ns = vim.api.nvim_create_namespace('luxdash_menu')
+  local other_ns = vim.api.nvim_create_namespace('luxdash_other')
+  
+  for _, hl in ipairs(all_highlights) do
+    local line_idx = hl.line_num - 1
+    if line_idx >= 0 and line_idx < #lines then
+      local line_text = lines[line_idx + 1] or ''
+      local line_length = vim.fn.strwidth(line_text)
+      local start_col = math.max(0, math.min(hl.start_col, line_length))
+      local end_col = math.max(start_col, math.min(hl.end_col, line_length))
+      
+      if start_col < end_col then
+        local namespace
+        if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
+          namespace = logo_ns
+        elseif hl.hl_group and hl.hl_group:match('^LuxDashMenu') then
+          namespace = menu_ns
+        else
+          namespace = other_ns
+        end
+        
+        vim.api.nvim_buf_add_highlight(0, namespace, hl.hl_group, line_idx, start_col, end_col)
+      end
+    end
+  end
 end
 
 function M.resize()

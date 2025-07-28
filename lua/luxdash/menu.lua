@@ -19,11 +19,6 @@ local default_icons = {
 function M.options(modules)
   menu_options = {}
   
-  -- Add menu title
-  table.insert(menu_options, {'LuxDashMenuTitle', 'Menu'})
-  table.insert(menu_options, {'LuxDashMenuSeparator', string.rep('─', 20)})
-  table.insert(menu_options, '')
-  
   for _, name in ipairs(modules) do
     local info = M.get_option(name)
     
@@ -64,7 +59,6 @@ function M.options(modules)
     end
   end
   
-  table.insert(menu_options, '')
   return menu_options
 end
 

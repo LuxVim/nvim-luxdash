@@ -28,13 +28,25 @@ M.config = {
   },
   options = { 'newfile', 'backtrack', 'fzf', 'closelux' },
   extras = {},
-  bottom_sections = {'recent_files', 'git_status', 'empty'},
+  bottom_sections = {'menu', 'recent_files', 'git_status'},
   section_configs = {
+    menu = {
+      alignment = { 
+        horizontal = 'center', 
+        vertical = 'top',
+        title_horizontal = 'center',
+        content_horizontal = 'center'
+      },
+      padding = { left = 2, right = 2 },
+      title = 'Actions',
+      show_title = true,
+      show_underline = true
+    },
     recent_files = { 
       max_files = 10,
       alignment = { 
         horizontal = 'center', 
-        vertical = 'center',
+        vertical = 'top',
         title_horizontal = 'center',
         content_horizontal = 'left'
       },
@@ -45,7 +57,7 @@ M.config = {
     git_status = {
       alignment = { 
         horizontal = 'center', 
-        vertical = 'center',
+        vertical = 'top',
         title_horizontal = 'center',
         content_horizontal = 'left'
       },

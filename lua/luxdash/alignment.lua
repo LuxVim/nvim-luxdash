@@ -4,7 +4,8 @@ local M = {}
 function M.align_text(text, width, alignment, padding)
   -- Ensure text is a string
   local text_str = tostring(text or '')
-  local text_width = vim.fn.strwidth(text_str)
+  -- Use display width for Braille characters which may have special rendering
+  local text_width = vim.fn.strdisplaywidth(text_str)
   
   -- Apply padding if provided
   local left_pad = padding and padding.left or 0

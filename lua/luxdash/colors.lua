@@ -11,6 +11,20 @@ local color_presets = {
   cyan = '#4dd0e1'
 }
 
+-- Helper function to detect if a string contains primarily Braille characters
+local function is_braille_text(text)
+  local braille_count = 0
+  local total_chars = 0
+  for char in text:gmatch("([%z\1-\127\194-\244][\128-\191]*)") do
+    total_chars = total_chars + 1
+    local codepoint = vim.fn.char2nr(char)
+    if codepoint >= 0x2800 and codepoint <= 0x28FF then
+      braille_count = braille_count + 1
+    end
+  end
+  return total_chars > 0 and (braille_count / total_chars) > 0.5
+end
+
 function M.apply_logo_color(logo, color_config)
   if not color_config then
     return logo
@@ -67,6 +81,7 @@ function M.apply_logo_color(logo, color_config)
         local interpolated_color = M.interpolate_color(start_color, end_color, ratio)
         vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
         
+        -- Use the same highlight approach for both Braille and regular text
         table.insert(colored_logo, {hl_name, line})
       end
     end

@@ -132,7 +132,27 @@ function M.process_line_for_rendering(line, pad_left)
 end
 
 function M.apply_highlights(highlights, lines)
+  -- Sort highlights by priority (logo highlights first to ensure they're not overridden)
+  local sorted_highlights = {}
   for _, hl in ipairs(highlights) do
+    table.insert(sorted_highlights, hl)
+  end
+  
+  table.sort(sorted_highlights, function(a, b)
+    -- Logo highlights get priority over menu highlights
+    local a_is_logo = a.hl_group and a.hl_group:match('^LuxDashLogo') ~= nil
+    local b_is_logo = b.hl_group and b.hl_group:match('^LuxDashLogo') ~= nil
+    
+    if a_is_logo and not b_is_logo then
+      return false  -- Apply logo highlights after menu highlights so they take precedence
+    elseif not a_is_logo and b_is_logo then
+      return true   -- Apply menu highlights first
+    else
+      return false  -- Same priority, maintain order
+    end
+  end)
+  
+  for _, hl in ipairs(sorted_highlights) do
     -- Validate highlight bounds
     local line_idx = hl.line_num - 1
     if line_idx >= 0 and line_idx < #lines then
