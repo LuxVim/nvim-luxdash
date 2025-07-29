@@ -63,16 +63,27 @@ function M.build()
       menu_items = menu_items,
       extras = extras,
       section_type = 'sub',
+      title = 'Actions',
+      show_title = true,
+      show_underline = true,
       title_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.title_horizontal or 'center',
       content_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.content_horizontal or 'center',
-      vertical_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.vertical or 'center'
+      vertical_alignment = config.section_configs and config.section_configs.menu and config.section_configs.menu.alignment and config.section_configs.menu.alignment.vertical or 'top'
     })
   else
+    local section_titles = {
+      recent_files = 'Recent Files',
+      git_status = 'Git Status',
+      actions = 'Actions'
+    }
     bottom_left_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[1]] or {}, {
       section_type = 'sub',
+      title = section_titles[bottom_sections[1]] or bottom_sections[1]:gsub('_', ' '):gsub('%w+', function(w) return w:sub(1,1):upper()..w:sub(2) end),
+      show_title = true,
+      show_underline = true,
       title_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.title_horizontal or 'center',
       content_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.content_horizontal or 'center',
-      vertical_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.vertical or 'center'
+      vertical_alignment = config.section_configs and config.section_configs[bottom_sections[1]] and config.section_configs[bottom_sections[1]].alignment and config.section_configs[bottom_sections[1]].alignment.vertical or 'top'
     })
   end
   
@@ -82,26 +93,43 @@ function M.build()
       menu_items = menu_items,
       extras = extras,
       section_type = 'sub',
+      title = 'Actions',
+      show_title = true,
+      show_underline = true,
       title_alignment = 'center',
       content_alignment = 'center',
-      vertical_alignment = 'center',
-      show_title = false,
-      show_underline = false
+      vertical_alignment = 'top'
     }
   else
+    local section_titles = {
+      recent_files = 'Recent Files',
+      git_status = 'Git Status',
+      actions = 'Actions'
+    }
     bottom_center_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[2]] or {}, {
       section_type = 'sub',
+      title = section_titles[bottom_sections[2]] or bottom_sections[2]:gsub('_', ' '):gsub('%w+', function(w) return w:sub(1,1):upper()..w:sub(2) end),
+      show_title = true,
+      show_underline = true,
       title_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.title_horizontal or 'center',
       content_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.content_horizontal or 'center',
-      vertical_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.vertical or 'center'
+      vertical_alignment = config.section_configs and config.section_configs[bottom_sections[2]] and config.section_configs[bottom_sections[2]].alignment and config.section_configs[bottom_sections[2]].alignment.vertical or 'top'
     })
   end
   
+  local section_titles = {
+    recent_files = 'Recent Files',
+    git_status = 'Git Status',
+    actions = 'Actions'
+  }
   local bottom_right_config = vim.tbl_deep_extend('force', config.section_configs and config.section_configs[bottom_sections[3]] or {}, {
     section_type = 'sub',
+    title = section_titles[bottom_sections[3]] or bottom_sections[3]:gsub('_', ' '):gsub('%w+', function(w) return w:sub(1,1):upper()..w:sub(2) end),
+    show_title = true,
+    show_underline = true,
     title_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.title_horizontal or 'center',
     content_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.content_horizontal or 'center',
-    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.vertical or 'center'
+    vertical_alignment = config.section_configs and config.section_configs[bottom_sections[3]] and config.section_configs[bottom_sections[3]].alignment and config.section_configs[bottom_sections[3]].alignment.vertical or 'top'
   })
 
   local bottom_left_content = section_renderer.render_section(bottom_left_section, layout_data.bottom.left.width, layout_data.bottom.left.height, bottom_left_config)
@@ -118,32 +146,40 @@ function M.build()
   
   -- Helper function to ensure exact width
   local function ensure_exact_width(line, target_width)
-    if type(line) == 'table' then
-      if line[2] then
-        -- Format: {highlight, text}
-        local text = tostring(line[2])
-        local text_width = vim.fn.strwidth(text)
-        if text_width < target_width then
-          return {line[1], text .. string.rep(' ', target_width - text_width)}
-        elseif text_width > target_width then
-          return {line[1], vim.fn.strpart(text, 0, target_width)}
+    -- For complex format lines, use line_utils to properly handle width
+    if type(line) == 'table' and #line > 0 and type(line[1]) == 'table' then
+      -- Complex format: {{highlight, text}, {highlight, text}, ...}
+      local combined = line_utils.combine_line_parts({line})
+      local text = type(combined) == 'table' and combined[1] or combined
+      local text_width = vim.fn.strwidth(text)
+      
+      if text_width < target_width then
+        -- Add padding by appending spaces to the combined text
+        local padding = string.rep(' ', target_width - text_width)
+        -- Return the original complex format with padding appended
+        local padded_line = {}
+        for _, part in ipairs(line) do
+          table.insert(padded_line, part)
         end
-        return line
-      elseif #line > 0 and type(line[1]) == 'table' then
-        -- Complex format: {{highlight, text}, {highlight, text}, ...}
-        -- For now, just return as-is to avoid corruption - let line_utils handle it
-        return line
-      else
-        -- Fallback for unknown table format
-        local text = tostring(line)
-        local text_width = vim.fn.strwidth(text)
-        if text_width < target_width then
-          return text .. string.rep(' ', target_width - text_width)
-        elseif text_width > target_width then
-          return vim.fn.strpart(text, 0, target_width)
+        if target_width > text_width then
+          table.insert(padded_line, {'Normal', padding})
         end
-        return text
+        return padded_line
+      elseif text_width > target_width then
+        -- Truncate by removing characters from the end
+        return line -- For now, let section renderer handle truncation
       end
+      return line
+    elseif type(line) == 'table' and line[2] then
+      -- Simple format: {highlight, text}
+      local text = tostring(line[2])
+      local text_width = vim.fn.strwidth(text)
+      if text_width < target_width then
+        return {line[1], text .. string.rep(' ', target_width - text_width)}
+      elseif text_width > target_width then
+        return {line[1], vim.fn.strpart(text, 0, target_width)}
+      end
+      return line
     else
       -- Plain text
       local text = tostring(line)
@@ -168,14 +204,28 @@ function M.build()
     bottom_right_line = ensure_exact_width(bottom_right_line, layout_data.bottom.right.width)
     
     -- Check if this is an underline row (contains '─' characters)
-    local is_underline_row = false
-    if type(bottom_left_line) == 'table' and bottom_left_line[2] and type(bottom_left_line[2]) == 'string' and string.find(bottom_left_line[2], '─') then
-      is_underline_row = true
-    elseif type(bottom_center_line) == 'table' and bottom_center_line[2] and type(bottom_center_line[2]) == 'string' and string.find(bottom_center_line[2], '─') then
-      is_underline_row = true
-    elseif type(bottom_right_line) == 'table' and bottom_right_line[2] and type(bottom_right_line[2]) == 'string' and string.find(bottom_right_line[2], '─') then
-      is_underline_row = true
+    local function contains_underline(line)
+      if type(line) == 'table' then
+        if line[2] and type(line[2]) == 'string' then
+          -- Simple format: {highlight, text}
+          return string.find(line[2], '─') ~= nil
+        elseif #line > 0 and type(line[1]) == 'table' then
+          -- Complex format: {{highlight, text}, {highlight, text}, ...}
+          for _, part in ipairs(line) do
+            if type(part) == 'table' and part[2] and type(part[2]) == 'string' and string.find(part[2], '─') then
+              return true
+            end
+          end
+        end
+      elseif type(line) == 'string' then
+        return string.find(line, '─') ~= nil
+      end
+      return false
     end
+    
+    local is_underline_row = contains_underline(bottom_left_line) or 
+                            contains_underline(bottom_center_line) or 
+                            contains_underline(bottom_right_line)
     
     local combined_line
     if is_underline_row then

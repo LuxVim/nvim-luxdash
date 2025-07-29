@@ -3,33 +3,53 @@ local M = {}
 function M.render(width, height, config)
   local git_info = M.get_git_status()
   
+  -- Calculate available height for content (subtract title and underline if present)
+  local available_height = height
+  if config.show_title ~= false then
+    available_height = available_height - 1  -- title
+    if config.show_underline ~= false then
+      available_height = available_height - 1  -- underline
+    end
+    if config.title_spacing ~= false then
+      available_height = available_height - 1  -- spacing
+    end
+  end
+  
   local content = {}
   
   if not git_info.is_repo then
     table.insert(content, {'LuxDashComment', 'Not a git repo'})
   else
-    if git_info.branch then
+    local lines_added = 0
+    
+    if git_info.branch and lines_added < available_height then
       local branch_line = '󰘬 ' .. M.truncate_text(git_info.branch, width - 8)
       table.insert(content, {'LuxDashGitBranch', branch_line})
+      lines_added = lines_added + 1
     end
     
-    if git_info.status_counts then
+    if git_info.status_counts and lines_added < available_height then
       local counts = git_info.status_counts
-      if counts.modified > 0 then
-        table.insert(content, {'LuxDashGitModified', '󰷈 Modified: ' .. counts.modified})
+      if counts.modified > 0 and lines_added < available_height then
+        table.insert(content, {'LuxDashGitModified', M.truncate_text('󰷈 Modified: ' .. counts.modified, width)})
+        lines_added = lines_added + 1
       end
-      if counts.added > 0 then
-        table.insert(content, {'LuxDashGitAdded', '󰐕 Added: ' .. counts.added})
+      if counts.added > 0 and lines_added < available_height then
+        table.insert(content, {'LuxDashGitAdded', M.truncate_text('󰐕 Added: ' .. counts.added, width)})
+        lines_added = lines_added + 1
       end
-      if counts.deleted > 0 then
-        table.insert(content, {'LuxDashGitDeleted', '󰍵 Deleted: ' .. counts.deleted})
+      if counts.deleted > 0 and lines_added < available_height then
+        table.insert(content, {'LuxDashGitDeleted', M.truncate_text('󰍵 Deleted: ' .. counts.deleted, width)})
+        lines_added = lines_added + 1
       end
-      if counts.untracked > 0 then
-        table.insert(content, {'LuxDashGitUntracked', '󰋖 Untracked: ' .. counts.untracked})
+      if counts.untracked > 0 and lines_added < available_height then
+        table.insert(content, {'LuxDashGitUntracked', M.truncate_text('󰋖 Untracked: ' .. counts.untracked, width)})
+        lines_added = lines_added + 1
       end
       
-      if counts.modified == 0 and counts.added == 0 and counts.deleted == 0 and counts.untracked == 0 then
+      if counts.modified == 0 and counts.added == 0 and counts.deleted == 0 and counts.untracked == 0 and lines_added < available_height then
         table.insert(content, {'LuxDashGitClean', '󰸞 Clean'})
+        lines_added = lines_added + 1
       end
     end
   end

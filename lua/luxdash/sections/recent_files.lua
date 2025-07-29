@@ -2,6 +2,21 @@ local M = {}
 
 function M.render(width, height, config)
   local max_files = config.max_files or 10
+  -- Calculate available height for content (subtract title and underline if present)
+  local available_height = height
+  if config.show_title ~= false then
+    available_height = available_height - 1  -- title
+    if config.show_underline ~= false then
+      available_height = available_height - 1  -- underline
+    end
+    if config.title_spacing ~= false then
+      available_height = available_height - 1  -- spacing
+    end
+  end
+  
+  -- Limit max_files to available height
+  max_files = math.min(max_files, available_height)
+  
   local recent_files = M.get_recent_files(max_files)
   
   local content = {}
