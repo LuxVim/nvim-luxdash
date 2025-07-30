@@ -40,21 +40,21 @@ function M.build()
   local logo_section = layout.load_section('logo')
   local menu_section = layout.load_section('menu')
   
-  local main_content = section_renderer.render_section(logo_section, layout_data.main.width, layout_data.main.height, {
-    logo = config.logo,
-    logo_color = config.logo_color,
-    section_type = 'main',
-    title_alignment = 'center',
-    content_alignment = 'center',
-    vertical_alignment = 'center',
-    show_title = false,
-    show_underline = false
+    local main_content = section_renderer.render_section(logo_section, layout_data.main.width, layout_data.main.height, {
+        logo                = config.logo,
+        logo_color          = config.logo_color,
+        section_type        = 'main',
+        title_alignment     = 'center',
+        content_alignment   = 'center',
+        vertical_alignment  = 'center',
+        show_title          = false,
+        show_underline      = false
   })
   
-  local bottom_sections = config.bottom_sections or {'menu', 'recent_files', 'git_status'}
-  local bottom_left_section = bottom_sections[1] == 'menu' and menu_section or layout.load_section(bottom_sections[1] or 'empty')
-  local bottom_center_section = bottom_sections[2] == 'menu' and menu_section or layout.load_section(bottom_sections[2] or 'empty')
-  local bottom_right_section = layout.load_section(bottom_sections[3] or 'empty')
+  local bottom_sections         = config.bottom_sections or {'menu', 'recent_files', 'git_status'}
+  local bottom_left_section     = bottom_sections[1] == 'menu' and menu_section or layout.load_section(bottom_sections[1] or 'empty')
+  local bottom_center_section   = bottom_sections[2] == 'menu' and menu_section or layout.load_section(bottom_sections[2] or 'empty')
+  local bottom_right_section    = layout.load_section(bottom_sections[3] or 'empty')
   
   -- Convert section configs to new format and add section_type
   local bottom_left_config
@@ -266,7 +266,29 @@ function M.print()
   
   local table_width = 0
   for _, line in ipairs(dashboard) do
-    local line_text = type(line) == 'table' and line[1] or line
+    local line_text
+    if type(line) == 'table' then
+      -- Handle different table formats
+      if #line > 0 and type(line[1]) == 'table' then
+        -- Complex format: {{highlight, text}, {highlight, text}, ...}
+        -- Extract text from all parts
+        local combined_text = ''
+        for _, part in ipairs(line) do
+          if type(part) == 'table' and #part >= 2 then
+            combined_text = combined_text .. tostring(part[2] or '')
+          end
+        end
+        line_text = combined_text
+      elseif line[2] then
+        -- Simple format: {highlight, text}
+        line_text = tostring(line[2])
+      else
+        -- Fallback
+        line_text = tostring(line[1] or '')
+      end
+    else
+      line_text = tostring(line)
+    end
     table_width = math.max(table_width, vim.fn.strwidth(line_text))
   end
   local pad_left = padding.left + math.floor((content_width - table_width) / 2)

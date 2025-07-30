@@ -63,36 +63,89 @@ function M.process_line_for_rendering(line, pad_left)
   if type(line) == 'table' then
     -- Check if it's a complex multi-highlight structure
     if #line > 0 and type(line[1]) == 'table' then
-      -- Complex format: {{highlight, text}, {highlight, text}, ...}
-      local combined = M.combine_line_parts({line})
-      local text = combined[1] or combined
-      local highlights = type(combined) == 'table' and combined[2] or {}
-      local padded_text = string.rep(' ', pad_left) .. text
-      
-      local processed_highlights = {}
-      if type(highlights) == 'table' then
-        for _, hl in ipairs(highlights) do
-          if hl.hl_group and type(hl.hl_group) == 'string' then
-            local adjusted_end_col = pad_left + hl.end_col
-            table.insert(processed_highlights, {
-              start_col = pad_left + hl.start_col,
-              end_col = adjusted_end_col,
-              hl_group = hl.hl_group
-            })
-            
-            -- For logo highlights, ensure buffer line supports the highlight width
-            if hl.hl_group:match('^LuxDashLogo') then
-              local current_padded_width = vim.fn.strwidth(padded_text)
-              if current_padded_width < adjusted_end_col then
-                local extra_spaces = adjusted_end_col - current_padded_width
-                padded_text = padded_text .. string.rep(' ', extra_spaces)
+      -- Check if this is a full-row highlight line (3 parts: left padding, content, right padding)
+      if #line == 3 and 
+         type(line[1]) == 'table' and type(line[2]) == 'table' and type(line[3]) == 'table' and
+         line[1][2] == '' and line[3][2] == '' and 
+         line[1][1] and line[1][1]:match('^LuxDashLogo') then
+        
+        -- Full-row highlight format: {{hl, ''}, {hl, text}, {hl, ''}}
+        local highlight_group = line[1][1]
+        local content_text = line[2][2] or ''
+        
+        -- For main section (logo), the highlighting should span the ENTIRE row including padding
+        local winwidth = vim.api.nvim_win_get_width(0)
+        local config = require('luxdash').config
+        local padding_config = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
+        local content_width = winwidth - padding_config.left - padding_config.right
+        
+        -- Calculate content positioning for centering within the content area
+        local content_display_width = vim.fn.strdisplaywidth(content_text)
+        local left_padding_size = math.max(0, math.floor((content_width - content_display_width) / 2))
+        local right_padding_size = math.max(0, content_width - left_padding_size - content_display_width)
+        
+        -- Create the full line with proper spacing
+        local left_spaces = string.rep(' ', left_padding_size)
+        local right_spaces = string.rep(' ', right_padding_size)
+        local full_line = left_spaces .. content_text .. right_spaces
+        local padded_text = string.rep(' ', pad_left) .. full_line
+        
+        -- Ensure the padded_text extends to the FULL window width (including padding areas)
+        local current_width = vim.fn.strwidth(padded_text)
+        if current_width < winwidth then
+          local extra_spaces = winwidth - current_width
+          padded_text = padded_text .. string.rep(' ', extra_spaces)
+        end
+        
+        -- Create highlight that spans the ENTIRE row from column 0 to window width
+        local processed_highlights = {{
+          start_col = 0,
+          end_col = winwidth,
+          hl_group = highlight_group
+        }}
+        
+        return padded_text, processed_highlights
+      else
+        -- Regular complex format: {{highlight, text}, {highlight, text}, ...}
+        local combined = M.combine_line_parts({line})
+        local text = combined[1] or combined
+        local highlights = type(combined) == 'table' and combined[2] or {}
+        local padded_text = string.rep(' ', pad_left) .. text
+        
+        local processed_highlights = {}
+        if type(highlights) == 'table' then
+          for _, hl in ipairs(highlights) do
+            if hl.hl_group and type(hl.hl_group) == 'string' then
+              local adjusted_end_col = pad_left + hl.end_col
+              
+              -- For logo highlights, extend to cover ENTIRE row including padding
+              if hl.hl_group:match('^LuxDashLogo') then
+                local winwidth = vim.api.nvim_win_get_width(0)
+                
+                -- Extend highlight to cover full window width
+                adjusted_end_col = winwidth
+                
+                local current_padded_width = vim.fn.strwidth(padded_text)
+                if current_padded_width < adjusted_end_col then
+                  local extra_spaces = adjusted_end_col - current_padded_width
+                  padded_text = padded_text .. string.rep(' ', extra_spaces)
+                end
               end
+              
+              -- For logo highlights, start from column 0 for full-row highlighting
+              local start_col = hl.hl_group:match('^LuxDashLogo') and 0 or (pad_left + hl.start_col)
+              
+              table.insert(processed_highlights, {
+                start_col = start_col,
+                end_col = adjusted_end_col,
+                hl_group = hl.hl_group
+              })
             end
           end
         end
+        
+        return padded_text, processed_highlights
       end
-      
-      return padded_text, processed_highlights
     elseif line[2] then
       -- Detect format: {highlight, text} vs {text, highlights}
       local text, highlight_group, processed_highlights
@@ -121,10 +174,15 @@ function M.process_line_for_rendering(line, pad_left)
       
       local padded_text = string.rep(' ', pad_left) .. tostring(text)
       
-      -- For logo highlights in processed_highlights, ensure buffer line supports full width
+      -- For logo highlights in processed_highlights, extend to cover full width
       if processed_highlights then
         for _, hl in ipairs(processed_highlights) do
           if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
+            local winwidth = vim.api.nvim_win_get_width(0)
+            
+            -- Extend highlight to cover ENTIRE row including padding
+            hl.end_col = winwidth
+            
             local current_padded_width = vim.fn.strwidth(padded_text)
             if current_padded_width < hl.end_col then
               local extra_spaces = hl.end_col - current_padded_width
@@ -138,8 +196,13 @@ function M.process_line_for_rendering(line, pad_left)
         local text_width = vim.fn.strwidth(tostring(text))
         local end_col = pad_left + text_width
         
-        -- For logo highlights, make sure the buffer line supports the full highlight width
+        -- For logo highlights, extend the highlight to cover ENTIRE row including padding
         if highlight_group:match('^LuxDashLogo') then
+          local winwidth = vim.api.nvim_win_get_width(0)
+          
+          -- Extend highlight to cover full window width
+          end_col = winwidth
+          
           -- Ensure the padded text is at least as long as the highlight end column
           local current_padded_width = vim.fn.strwidth(padded_text)
           if current_padded_width < end_col then
@@ -148,8 +211,11 @@ function M.process_line_for_rendering(line, pad_left)
           end
         end
         
+        -- For logo highlights, start from column 0 for full-row highlighting
+        local start_col = highlight_group:match('^LuxDashLogo') and 0 or pad_left
+        
         processed_highlights = {{
-          start_col = pad_left,
+          start_col = start_col,
           end_col = end_col,
           hl_group = highlight_group
         }}

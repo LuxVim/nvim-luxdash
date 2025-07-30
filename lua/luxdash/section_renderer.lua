@@ -63,8 +63,9 @@ function M.render_section(section_module, width, height, config)
       if #line >= 2 and type(line[1]) == 'string' and type(line[2]) == 'string' then
         -- Simple format: {highlight, text}
         local text = line[2]
-        local aligned_text = alignment.align_text(text, width, content_alignment, padding)
-        table.insert(content, {line[1], aligned_text})
+        local highlight_group = line[1]
+        local aligned_text = alignment.align_text_with_highlight(text, width, content_alignment, padding, highlight_group)
+        table.insert(content, {highlight_group, aligned_text})
       elseif #line > 0 and type(line[1]) == 'table' then
         -- Complex format: {{highlight, text}, {highlight, text}, ...}
         -- For now, pass through as-is since alignment is handled at render time

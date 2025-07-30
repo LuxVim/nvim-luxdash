@@ -1,14 +1,14 @@
 local M = {}
 
 local color_presets = {
-  blue = '#569cd6',
-  green = '#4ec9b0',
-  red = '#f44747',
-  yellow = '#dcdcaa',
-  purple = '#c586c0',
-  orange = '#ce9178',
-  pink = '#f392b1',
-  cyan = '#4dd0e1'
+    blue    = '#569cd6',
+    green   = '#4ec9b0',
+    red     = '#f44747',
+    yellow  = '#dcdcaa',
+    purple  = '#c586c0',
+    orange  = '#ce9178',
+    pink    = '#f392b1',
+    cyan    = '#4dd0e1'
 }
 
 -- Helper function to detect if a string contains primarily Braille characters
@@ -25,6 +25,17 @@ local function is_braille_text(text)
   return total_chars > 0 and (braille_count / total_chars) > 0.5
 end
 
+-- Create a line with full-row highlighting that spans the entire available width
+function M.create_full_row_highlight_line(highlight_group, text)
+  -- Return a special format that will be processed by line_utils to create full-width highlighting
+  -- This uses a complex format with three parts: left padding, content, right padding
+  return {
+    {highlight_group, ''},  -- Left padding highlight (will be dynamically sized)
+    {highlight_group, text}, -- Content with highlight
+    {highlight_group, ''}   -- Right padding highlight (will be dynamically sized)
+  }
+end
+
 function M.apply_logo_color(logo, color_config)
   if not color_config then
     return logo
@@ -38,7 +49,8 @@ function M.apply_logo_color(logo, color_config)
       if line == '' then
         table.insert(colored_logo, line)
       else
-        table.insert(colored_logo, {'LuxDashLogo', line})
+        -- Create full-row highlighting by adding highlight groups at beginning and end
+        table.insert(colored_logo, M.create_full_row_highlight_line('LuxDashLogo', line))
       end
     end
     
@@ -59,7 +71,8 @@ function M.apply_logo_color(logo, color_config)
         local interpolated_color = M.interpolate_color(top_color, bottom_color, ratio)
         vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
         
-        table.insert(colored_logo, {hl_name, line})
+        -- Create full-row highlighting by adding highlight groups at beginning and end
+        table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
       end
     end
     
@@ -81,8 +94,8 @@ function M.apply_logo_color(logo, color_config)
         local interpolated_color = M.interpolate_color(start_color, end_color, ratio)
         vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
         
-        -- Use the same highlight approach for both Braille and regular text
-        table.insert(colored_logo, {hl_name, line})
+        -- Create full-row highlighting by adding highlight groups at beginning and end
+        table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
       end
     end
     
@@ -94,32 +107,32 @@ function M.apply_logo_color(logo, color_config)
 end
 
 function M.interpolate_color(color1, color2, ratio)
-  local function hex_to_rgb(hex)
-    hex = hex:gsub('#', '')
-    return {
-      r = tonumber(hex:sub(1, 2), 16),
-      g = tonumber(hex:sub(3, 4), 16),
-      b = tonumber(hex:sub(5, 6), 16)
+    local function hex_to_rgb(hex)
+        hex = hex:gsub('#', '')
+        return {
+            r = tonumber(hex:sub(1, 2), 16),
+            g = tonumber(hex:sub(3, 4), 16),
+            b = tonumber(hex:sub(5, 6), 16)
+        }
+    end
+
+    local function rgb_to_hex(rgb)
+        return string.format('#%02x%02x%02x', 
+            math.floor(rgb.r + 0.5), 
+            math.floor(rgb.g + 0.5), 
+            math.floor(rgb.b + 0.5))
+    end
+
+    local rgb1 = hex_to_rgb(color1)
+    local rgb2 = hex_to_rgb(color2)
+
+    local interpolated = {
+        r = rgb1.r + (rgb2.r - rgb1.r) * ratio,
+        g = rgb1.g + (rgb2.g - rgb1.g) * ratio,
+        b = rgb1.b + (rgb2.b - rgb1.b) * ratio
     }
-  end
-  
-  local function rgb_to_hex(rgb)
-    return string.format('#%02x%02x%02x', 
-      math.floor(rgb.r + 0.5), 
-      math.floor(rgb.g + 0.5), 
-      math.floor(rgb.b + 0.5))
-  end
-  
-  local rgb1 = hex_to_rgb(color1)
-  local rgb2 = hex_to_rgb(color2)
-  
-  local interpolated = {
-    r = rgb1.r + (rgb2.r - rgb1.r) * ratio,
-    g = rgb1.g + (rgb2.g - rgb1.g) * ratio,
-    b = rgb1.b + (rgb2.b - rgb1.b) * ratio
-  }
-  
-  return rgb_to_hex(interpolated)
+
+    return rgb_to_hex(interpolated)
 end
 
 return M

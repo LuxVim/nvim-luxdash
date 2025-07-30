@@ -29,6 +29,15 @@ function M.align_text(text, width, alignment, padding)
   return string.rep(' ', left_pad) .. result .. string.rep(' ', right_pad)
 end
 
+-- Align text with highlight group, ensuring highlight covers the full aligned width
+function M.align_text_with_highlight(text, width, alignment, padding, highlight_group)
+  local aligned_text = M.align_text(text, width, alignment, padding)
+  
+  -- For logo highlights, we want the highlight to cover the entire aligned width
+  -- but keep the text properly centered - we'll handle this in the highlighting phase
+  return aligned_text
+end
+
 -- Apply vertical alignment to content
 function M.apply_vertical_alignment(content, width, height, alignment, section_type)
   local content_height = #content

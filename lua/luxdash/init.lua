@@ -108,21 +108,21 @@ function M.setup(opts)
   
   local group = vim.api.nvim_create_augroup('LuxDash', { clear = true })
   
-  vim.api.nvim_create_autocmd('VimEnter', {
-    group = group,
-    callback = function()
-      if vim.fn.argc() == 0 then
-        M.open()
-      end
-    end
-  })
+    vim.api.nvim_create_autocmd('VimEnter', {
+        group = group,
+        callback = function()
+            if vim.fn.argc() == 0 then
+                M.open()
+            end
+        end
+    })
   
-  vim.api.nvim_create_autocmd('VimResized', {
-    group = group,
-    callback = function()
-      require('luxdash.core').resize()
-    end
-  })
+    vim.api.nvim_create_autocmd('VimResized', {
+        group = group,
+        callback = function()
+            require('luxdash.core').resize()
+        end
+    })
   
   -- Track window size changes for luxdash buffers
   local function check_and_resize_luxdash()
@@ -179,11 +179,11 @@ function M.setup(opts)
 end
 
 function M.open()
-  require('luxdash.core').open()
+    require('luxdash.core').open()
 end
 
 function M.toggle()
-  require('luxdash.float').toggle()
+    require('luxdash.float').toggle()
 end
 
 return M

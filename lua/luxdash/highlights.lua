@@ -42,17 +42,17 @@ M.groups = {
 }
 
 function M.setup()
-  for group, opts in pairs(M.groups) do
-    vim.api.nvim_set_hl(0, group, opts)
-  end
+    for group, opts in pairs(M.groups) do
+        vim.api.nvim_set_hl(0, group, opts)
+    end
 end
 
 -- Get a highlight group name with fallback
 function M.get_hl(name, fallback)
-  if M.groups[name] then
-    return name
-  end
-  return fallback or 'Normal'
+    if M.groups[name] then
+        return name
+    end
+    return fallback or 'Normal'
 end
 
 return M
