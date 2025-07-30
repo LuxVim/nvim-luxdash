@@ -308,8 +308,15 @@ function M.print()
     if line_idx >= 0 and line_idx < #lines then
       local line_text = lines[line_idx + 1] or ''
       local line_length = vim.fn.strwidth(line_text)
-      local start_col = math.max(0, math.min(hl.start_col, line_length))
-      local end_col = math.max(start_col, math.min(hl.end_col, line_length))
+      -- Don't constrain logo highlights to line length - they should span their intended width
+      local start_col, end_col
+      if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
+        start_col = math.max(0, hl.start_col)
+        end_col = math.max(start_col, hl.end_col)
+      else
+        start_col = math.max(0, math.min(hl.start_col, line_length))
+        end_col = math.max(start_col, math.min(hl.end_col, line_length))
+      end
       
       if start_col < end_col then
         local namespace

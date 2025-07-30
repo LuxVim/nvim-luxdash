@@ -73,11 +73,21 @@ function M.process_line_for_rendering(line, pad_left)
       if type(highlights) == 'table' then
         for _, hl in ipairs(highlights) do
           if hl.hl_group and type(hl.hl_group) == 'string' then
+            local adjusted_end_col = pad_left + hl.end_col
             table.insert(processed_highlights, {
               start_col = pad_left + hl.start_col,
-              end_col = pad_left + hl.end_col,
+              end_col = adjusted_end_col,
               hl_group = hl.hl_group
             })
+            
+            -- For logo highlights, ensure buffer line supports the highlight width
+            if hl.hl_group:match('^LuxDashLogo') then
+              local current_padded_width = vim.fn.strwidth(padded_text)
+              if current_padded_width < adjusted_end_col then
+                local extra_spaces = adjusted_end_col - current_padded_width
+                padded_text = padded_text .. string.rep(' ', extra_spaces)
+              end
+            end
           end
         end
       end
@@ -98,9 +108,10 @@ function M.process_line_for_rendering(line, pad_left)
           processed_highlights = {}
           for _, hl in ipairs(highlights) do
             if hl.hl_group and type(hl.hl_group) == 'string' then
+              local adjusted_end_col = pad_left + hl.end_col
               table.insert(processed_highlights, {
                 start_col = pad_left + hl.start_col,
-                end_col = pad_left + hl.end_col,
+                end_col = adjusted_end_col,
                 hl_group = hl.hl_group
               })
             end
@@ -110,11 +121,36 @@ function M.process_line_for_rendering(line, pad_left)
       
       local padded_text = string.rep(' ', pad_left) .. tostring(text)
       
+      -- For logo highlights in processed_highlights, ensure buffer line supports full width
+      if processed_highlights then
+        for _, hl in ipairs(processed_highlights) do
+          if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
+            local current_padded_width = vim.fn.strwidth(padded_text)
+            if current_padded_width < hl.end_col then
+              local extra_spaces = hl.end_col - current_padded_width
+              padded_text = padded_text .. string.rep(' ', extra_spaces)
+            end
+          end
+        end
+      end
+      
       if highlight_group and type(highlight_group) == 'string' then
-        -- Simple highlight for the entire line
+        local text_width = vim.fn.strwidth(tostring(text))
+        local end_col = pad_left + text_width
+        
+        -- For logo highlights, make sure the buffer line supports the full highlight width
+        if highlight_group:match('^LuxDashLogo') then
+          -- Ensure the padded text is at least as long as the highlight end column
+          local current_padded_width = vim.fn.strwidth(padded_text)
+          if current_padded_width < end_col then
+            local extra_spaces = end_col - current_padded_width
+            padded_text = padded_text .. string.rep(' ', extra_spaces)
+          end
+        end
+        
         processed_highlights = {{
           start_col = pad_left,
-          end_col = pad_left + vim.fn.strwidth(tostring(text)),
+          end_col = end_col,
           hl_group = highlight_group
         }}
       end
