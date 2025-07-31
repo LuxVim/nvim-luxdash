@@ -29,6 +29,7 @@ end
 function M.create_full_row_highlight_line(highlight_group, text)
   -- Return a special format that will be processed by line_utils to create full-width highlighting
   -- This uses a complex format with three parts: left padding, content, right padding
+  -- The empty strings serve as markers for line_utils to expand the highlighting to full window width
   return {
     {highlight_group, ''},  -- Left padding highlight (will be dynamically sized)
     {highlight_group, text}, -- Content with highlight
@@ -43,15 +44,32 @@ function M.apply_logo_color(logo, color_config)
   
   local colored_logo = {}
   
-  if color_config.preset then
+  -- Prioritize row_gradient over preset
+  if color_config.row_gradient and color_config.row_gradient.start and color_config.row_gradient.bottom then
+    local start_color = color_config.row_gradient.start
+    local end_color = color_config.row_gradient.bottom
+    local logo_lines = #logo
+    
+    -- Clear any existing logo highlight groups to prevent interference
+    vim.api.nvim_set_hl(0, 'LuxDashLogo', {})
+    
+    for i, line in ipairs(logo) do
+      local ratio = (i - 1) / math.max(1, logo_lines - 1)
+      local hl_name = 'LuxDashLogoRowGradient' .. i
+      
+      local interpolated_color = M.interpolate_color(start_color, end_color, ratio)
+      -- Use gradient color as foreground, let background be default colorscheme
+      vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
+      
+      -- Create full-row highlighting for ALL row gradient lines, including empty ones
+      table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
+    end
+    
+  elseif color_config.preset then
     local color = color_presets[color_config.preset] or color_config.preset
     for _, line in ipairs(logo) do
-      if line == '' then
-        table.insert(colored_logo, line)
-      else
-        -- Create full-row highlighting by adding highlight groups at beginning and end
-        table.insert(colored_logo, M.create_full_row_highlight_line('LuxDashLogo', line))
-      end
+      -- Create full-row highlighting for ALL logo lines, including empty ones
+      table.insert(colored_logo, M.create_full_row_highlight_line('LuxDashLogo', line))
     end
     
     vim.api.nvim_set_hl(0, 'LuxDashLogo', {fg = color})
@@ -62,41 +80,14 @@ function M.apply_logo_color(logo, color_config)
     local logo_lines = #logo
     
     for i, line in ipairs(logo) do
-      if line == '' then
-        table.insert(colored_logo, line)
-      else
-        local ratio = (i - 1) / math.max(1, logo_lines - 1)
-        local hl_name = 'LuxDashLogoGradient' .. i
-        
-        local interpolated_color = M.interpolate_color(top_color, bottom_color, ratio)
-        vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
-        
-        -- Create full-row highlighting by adding highlight groups at beginning and end
-        table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
-      end
-    end
-    
-  elseif color_config.row_gradient and color_config.row_gradient.start and color_config.row_gradient.bottom then
-    local start_color = color_config.row_gradient.start
-    local end_color = color_config.row_gradient.bottom
-    local logo_lines = #logo
-    
-    -- Clear any existing logo highlight groups to prevent interference
-    vim.api.nvim_set_hl(0, 'LuxDashLogo', {})
-    
-    for i, line in ipairs(logo) do
-      if line == '' or vim.fn.strwidth(line) == 0 then
-        table.insert(colored_logo, line)
-      else
-        local ratio = (i - 1) / math.max(1, logo_lines - 1)
-        local hl_name = 'LuxDashLogoRowGradient' .. i
-        
-        local interpolated_color = M.interpolate_color(start_color, end_color, ratio)
-        vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
-        
-        -- Create full-row highlighting by adding highlight groups at beginning and end
-        table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
-      end
+      local ratio = (i - 1) / math.max(1, logo_lines - 1)
+      local hl_name = 'LuxDashLogoGradient' .. i
+      
+      local interpolated_color = M.interpolate_color(top_color, bottom_color, ratio)
+      vim.api.nvim_set_hl(0, hl_name, {fg = interpolated_color})
+      
+      -- Create full-row highlighting for ALL gradient lines, including empty ones
+      table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
     end
     
   else
@@ -133,6 +124,33 @@ function M.interpolate_color(color1, color2, ratio)
     }
 
     return rgb_to_hex(interpolated)
+end
+
+function M.darken_color(hex_color, factor)
+    local function hex_to_rgb(hex)
+        hex = hex:gsub('#', '')
+        return {
+            r = tonumber(hex:sub(1, 2), 16),
+            g = tonumber(hex:sub(3, 4), 16),
+            b = tonumber(hex:sub(5, 6), 16)
+        }
+    end
+
+    local function rgb_to_hex(rgb)
+        return string.format('#%02x%02x%02x', 
+            math.floor(rgb.r + 0.5), 
+            math.floor(rgb.g + 0.5), 
+            math.floor(rgb.b + 0.5))
+    end
+
+    local rgb = hex_to_rgb(hex_color)
+    local darkened = {
+        r = rgb.r * (1 - factor),
+        g = rgb.g * (1 - factor),
+        b = rgb.b * (1 - factor)
+    }
+
+    return rgb_to_hex(darkened)
 end
 
 return M

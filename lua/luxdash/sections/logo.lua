@@ -1,5 +1,5 @@
 local M = {}
-local colors = require('luxdash.colors')
+local colors = require('luxdash.rendering.colors')
 
 function M.render(width, height, config)
   local logo = config.logo or {}

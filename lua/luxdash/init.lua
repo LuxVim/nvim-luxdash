@@ -20,7 +20,7 @@ M.config = {
     '',
   },
   logo_color = {
-    preset = nil,
+    preset = 'blue',
     gradient = nil
   },
   -- Legacy options for menu section - kept for backward compatibility

@@ -73,38 +73,91 @@ function M.process_line_for_rendering(line, pad_left)
         local highlight_group = line[1][1]
         local content_text = line[2][2] or ''
         
-        -- For main section (logo), the highlighting should span the ENTIRE row including padding
+        -- For logo lines, create a SINGLE line that spans the entire window width with the highlight
         local winwidth = vim.api.nvim_win_get_width(0)
-        local config = require('luxdash').config
-        local padding_config = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
-        local content_width = winwidth - padding_config.left - padding_config.right
         
-        -- Calculate content positioning for centering within the content area
+        
+        -- STEP 1: First determine highlight range (always full window width for logo)
+        local highlight_start = 0
+        local highlight_end = winwidth
+        
+        -- STEP 2: Then create content to match the highlight range  
         local content_display_width = vim.fn.strdisplaywidth(content_text)
-        local left_padding_size = math.max(0, math.floor((content_width - content_display_width) / 2))
-        local right_padding_size = math.max(0, content_width - left_padding_size - content_display_width)
+        local content_byte_length = vim.fn.strlen(content_text)
+        local full_width_text
         
-        -- Create the full line with proper spacing
-        local left_spaces = string.rep(' ', left_padding_size)
-        local right_spaces = string.rep(' ', right_padding_size)
-        local full_line = left_spaces .. content_text .. right_spaces
-        local padded_text = string.rep(' ', pad_left) .. full_line
         
-        -- Ensure the padded_text extends to the FULL window width (including padding areas)
-        local current_width = vim.fn.strwidth(padded_text)
-        if current_width < winwidth then
-          local extra_spaces = winwidth - current_width
-          padded_text = padded_text .. string.rep(' ', extra_spaces)
+        if content_display_width > highlight_end then
+          -- Content is wider than highlight range - center it by truncating both sides
+          local excess_chars = content_display_width - highlight_end
+          local trim_left = math.floor(excess_chars / 2)
+          
+          -- Convert display positions to byte positions for proper Unicode handling
+          local trimmed_content = content_text
+          if trim_left > 0 then
+            -- Find byte position for trim_left display characters
+            local byte_pos = 1
+            local display_count = 0
+            for i = 1, #content_text do
+              local char = content_text:sub(byte_pos, byte_pos)
+              if char:byte() < 128 or char:byte() > 191 then  -- Start of UTF-8 character
+                display_count = display_count + vim.fn.strdisplaywidth(char)
+                if display_count >= trim_left then break end
+              end
+              byte_pos = byte_pos + 1
+            end
+            trimmed_content = content_text:sub(byte_pos)
+          end
+          
+          -- Trim from right to exact highlight width
+          local final_content = ""
+          local display_width = 0
+          for i = 1, #trimmed_content do
+            local char = trimmed_content:sub(i, i)
+            local char_width = vim.fn.strdisplaywidth(char)
+            if display_width + char_width <= highlight_end then
+              final_content = final_content .. char
+              display_width = display_width + char_width
+            else
+              break
+            end
+          end
+          
+          full_width_text = final_content
+          -- Pad to exact highlight width
+          local current_width = vim.fn.strdisplaywidth(full_width_text)
+          if current_width < highlight_end then
+            full_width_text = full_width_text .. string.rep(' ', highlight_end - current_width)
+          end
+        else
+          -- Content fits within highlight range - center with padding
+          local total_padding_needed = highlight_end - content_display_width
+          local left_padding_size = math.max(0, math.floor(total_padding_needed / 2))
+          local right_padding_size = math.max(0, total_padding_needed - left_padding_size)
+          
+          local left_spaces = string.rep(' ', left_padding_size)
+          local right_spaces = string.rep(' ', right_padding_size)
+          full_width_text = left_spaces .. content_text .. right_spaces
+          
+          -- Ensure exact highlight width
+          local current_width = vim.fn.strwidth(full_width_text)
+          if current_width < highlight_end then
+            full_width_text = full_width_text .. string.rep(' ', highlight_end - current_width)
+          elseif current_width > highlight_end then
+            full_width_text = full_width_text:sub(1, highlight_end)
+          end
         end
         
-        -- Create highlight that spans the ENTIRE row from column 0 to window width
+        
+        -- STEP 3: Create highlight that matches the content we just created
         local processed_highlights = {{
-          start_col = 0,
-          end_col = winwidth,
+          start_col = highlight_start,
+          end_col = highlight_end,
           hl_group = highlight_group
         }}
         
-        return padded_text, processed_highlights
+        
+        return full_width_text, processed_highlights
       else
         -- Regular complex format: {{highlight, text}, {highlight, text}, ...}
         local combined = M.combine_line_parts({line})
@@ -118,18 +171,33 @@ function M.process_line_for_rendering(line, pad_left)
             if hl.hl_group and type(hl.hl_group) == 'string' then
               local adjusted_end_col = pad_left + hl.end_col
               
-              -- For logo highlights, extend to cover ENTIRE row including padding
+              -- For logo highlights, create full-width highlight and text
               if hl.hl_group:match('^LuxDashLogo') then
                 local winwidth = vim.api.nvim_win_get_width(0)
                 
-                -- Extend highlight to cover full window width
-                adjusted_end_col = winwidth
+                -- For logo lines in complex format, we need to recreate the full line
+                -- Extract the text content from the combined line
+                local text_content = combined[1] or combined
+                local content_display_width = vim.fn.strdisplaywidth(text_content)
+                local total_padding_needed = winwidth - content_display_width
+                local left_pad_size = math.max(0, math.floor(total_padding_needed / 2))
+                local right_pad_size = math.max(0, total_padding_needed - left_pad_size)
                 
-                local current_padded_width = vim.fn.strwidth(padded_text)
-                if current_padded_width < adjusted_end_col then
-                  local extra_spaces = adjusted_end_col - current_padded_width
-                  padded_text = padded_text .. string.rep(' ', extra_spaces)
+                -- Create full-width text
+                local left_spaces = string.rep(' ', left_pad_size)
+                local right_spaces = string.rep(' ', right_pad_size)
+                padded_text = left_spaces .. text_content .. right_spaces
+                
+                -- Ensure exact window width
+                local current_width = vim.fn.strwidth(padded_text)
+                if current_width < winwidth then
+                  padded_text = padded_text .. string.rep(' ', winwidth - current_width)
+                elseif current_width > winwidth then
+                  padded_text = padded_text:sub(1, winwidth)
                 end
+                
+                -- Highlight spans the entire row
+                adjusted_end_col = winwidth
               end
               
               -- For logo highlights, start from column 0 for full-row highlighting
@@ -180,14 +248,29 @@ function M.process_line_for_rendering(line, pad_left)
           if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
             local winwidth = vim.api.nvim_win_get_width(0)
             
-            -- Extend highlight to cover ENTIRE row including padding
-            hl.end_col = winwidth
+            -- For logo highlights, recreate the padded_text to span full width
+            local original_text = tostring(text)
+            local content_display_width = vim.fn.strdisplaywidth(original_text)
+            local total_padding_needed = winwidth - content_display_width
+            local left_pad_size = math.max(0, math.floor(total_padding_needed / 2))
+            local right_pad_size = math.max(0, total_padding_needed - left_pad_size)
             
-            local current_padded_width = vim.fn.strwidth(padded_text)
-            if current_padded_width < hl.end_col then
-              local extra_spaces = hl.end_col - current_padded_width
-              padded_text = padded_text .. string.rep(' ', extra_spaces)
+            -- Create full-width text
+            local left_spaces = string.rep(' ', left_pad_size)
+            local right_spaces = string.rep(' ', right_pad_size)
+            padded_text = left_spaces .. original_text .. right_spaces
+            
+            -- Ensure exact window width
+            local current_width = vim.fn.strwidth(padded_text)
+            if current_width < winwidth then
+              padded_text = padded_text .. string.rep(' ', winwidth - current_width)
+            elseif current_width > winwidth then
+              padded_text = padded_text:sub(1, winwidth)
             end
+            
+            -- Highlight spans the entire row
+            hl.end_col = winwidth
+            hl.start_col = 0  -- Start from beginning of line for full-width highlighting
           end
         end
       end
@@ -196,19 +279,57 @@ function M.process_line_for_rendering(line, pad_left)
         local text_width = vim.fn.strwidth(tostring(text))
         local end_col = pad_left + text_width
         
-        -- For logo highlights, extend the highlight to cover ENTIRE row including padding
+        -- For logo highlights, create full-width highlight and text
         if highlight_group:match('^LuxDashLogo') then
           local winwidth = vim.api.nvim_win_get_width(0)
           
-          -- Extend highlight to cover full window width
-          end_col = winwidth
+          -- STEP 1: First determine highlight range (always full window width for logo)
+          local highlight_start = 0
+          local highlight_end = winwidth
           
-          -- Ensure the padded text is at least as long as the highlight end column
-          local current_padded_width = vim.fn.strwidth(padded_text)
-          if current_padded_width < end_col then
-            local extra_spaces = end_col - current_padded_width
-            padded_text = padded_text .. string.rep(' ', extra_spaces)
+          -- STEP 2: Then create content to match the highlight range
+          local content_text = tostring(text)
+          local content_display_width = vim.fn.strdisplaywidth(content_text)
+          
+          if content_display_width > highlight_end then
+            -- Content is wider than highlight range - center by trimming
+            local excess_chars = content_display_width - highlight_end
+            local trim_left = math.floor(excess_chars / 2)
+            
+            -- Simple string trimming for ASCII content
+            local trimmed_text = content_text:sub(trim_left + 1)
+            if #trimmed_text > highlight_end then
+              trimmed_text = trimmed_text:sub(1, highlight_end)
+            end
+            
+            padded_text = trimmed_text
+            -- Pad to exact highlight width
+            local current_width = vim.fn.strwidth(padded_text)
+            if current_width < highlight_end then
+              padded_text = padded_text .. string.rep(' ', highlight_end - current_width)
+            end
+          else
+            -- Content fits within highlight range - center with padding
+            local total_padding_needed = highlight_end - content_display_width
+            local left_pad_size = math.max(0, math.floor(total_padding_needed / 2))
+            local right_pad_size = math.max(0, total_padding_needed - left_pad_size)
+            
+            local left_spaces = string.rep(' ', left_pad_size)
+            local right_spaces = string.rep(' ', right_pad_size)
+            padded_text = left_spaces .. content_text .. right_spaces
+            
+            -- Ensure exact highlight width
+            local current_width = vim.fn.strwidth(padded_text)
+            if current_width < highlight_end then
+              padded_text = padded_text .. string.rep(' ', highlight_end - current_width)
+            elseif current_width > highlight_end then
+              padded_text = padded_text:sub(1, highlight_end)
+            end
           end
+          
+          
+          -- STEP 3: Set highlight to match the content we created
+          end_col = highlight_end
         end
         
         -- For logo highlights, start from column 0 for full-row highlighting
@@ -260,8 +381,33 @@ function M.apply_highlights(highlights, lines)
     if line_idx >= 0 and line_idx < #lines then
       local line_text = lines[line_idx + 1] or ''
       local line_length = vim.fn.strwidth(line_text)
-      local start_col = math.max(0, math.min(hl.start_col, line_length))
-      local end_col = math.max(start_col, math.min(hl.end_col, line_length))
+      local start_col = math.max(0, hl.start_col)
+      local end_col = hl.end_col
+      
+      -- For logo highlights, don't limit to line length - they should span full window width
+      if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
+        -- Logo highlights can extend beyond the line text length
+        local actual_winwidth = vim.api.nvim_win_get_width(0)
+        local line_byte_length = vim.fn.strlen(line_text)
+        local line_display_width = vim.fn.strdisplaywidth(line_text)
+        
+        
+        -- For braille/unicode content, we need to work with byte positions for highlights
+        -- but ensure we have enough display width for the content
+        if line_display_width < actual_winwidth then
+          -- Pad with spaces to reach window width in display terms
+          local padding_needed = actual_winwidth - line_display_width
+          lines[line_idx + 1] = lines[line_idx + 1] .. string.rep(' ', padding_needed)
+          line_byte_length = vim.fn.strlen(lines[line_idx + 1])
+        end
+        
+        -- Set highlight to cover the entire line in bytes
+        end_col = line_byte_length
+      else
+        -- Regular highlights are limited to the line length
+        start_col = math.min(start_col, line_length)
+        end_col = math.max(start_col, math.min(hl.end_col, line_length))
+      end
       
       if start_col < end_col then
         vim.api.nvim_buf_add_highlight(0, -1, hl.hl_group, line_idx, start_col, end_col)

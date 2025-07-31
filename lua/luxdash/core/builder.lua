@@ -53,8 +53,21 @@ function M.render_main_section(config, layout_data)
     render_config
   )
   
-  -- Add main section lines
-  for i = 1, layout_data.main.height do
+  -- Add main section lines - ensure we get all the content, not just the calculated height
+  local actual_main_lines = #main_content
+  local allocated_height = layout_data.main.height
+  
+  -- For logo sections, prioritize showing the complete logo over layout constraints
+  local lines_to_add = math.max(actual_main_lines, allocated_height)
+  
+  -- If the main content (logo) is longer than allocated space, adjust the layout
+  if actual_main_lines > allocated_height then
+    -- Reduce bottom section height to accommodate the full logo
+    layout_data.bottom.height = math.max(1, layout_data.bottom.height - (actual_main_lines - allocated_height))
+    layout_data.main.height = actual_main_lines
+  end
+  
+  for i = 1, lines_to_add do
     local main_line = main_content[i] or string.rep(' ', layout_data.main.width)
     dashboard_data.add_line(main_line)
   end

@@ -84,14 +84,17 @@ function M.render_section(section_module, width, height, config)
     end
   end
   
-  -- Ensure content doesn't exceed allocated height by truncating if necessary
-  local max_content_height = height
-  if #content > max_content_height then
-    local truncated_content = {}
-    for i = 1, max_content_height do
-      table.insert(truncated_content, content[i])
+  -- For main sections (logo), allow content to exceed allocated height
+  -- For sub-sections, ensure content doesn't exceed allocated height by truncating if necessary
+  if section_type ~= 'main' then
+    local max_content_height = height
+    if #content > max_content_height then
+      local truncated_content = {}
+      for i = 1, max_content_height do
+        table.insert(truncated_content, content[i])
+      end
+      content = truncated_content
     end
-    content = truncated_content
   end
   
   -- Apply vertical alignment

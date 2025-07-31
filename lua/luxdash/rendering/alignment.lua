@@ -69,10 +69,12 @@ function M.apply_vertical_alignment(content, width, height, alignment, section_t
     table.insert(aligned, line)
   end
   
-  -- Add bottom padding
-  local remaining_lines = height - #aligned
-  for _ = 1, remaining_lines do
-    table.insert(aligned, string.rep(' ', width))
+  -- Add bottom padding (only for sub-sections or when content doesn't exceed height)
+  if section_type == 'sub' or #aligned <= height then
+    local remaining_lines = height - #aligned
+    for _ = 1, remaining_lines do
+      table.insert(aligned, string.rep(' ', width))
+    end
   end
   
   return aligned

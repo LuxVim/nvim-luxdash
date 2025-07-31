@@ -18,7 +18,14 @@ function M.print()
   local config = require('luxdash').config
   local winheight = vim.api.nvim_win_get_height(0)
   local winwidth = vim.api.nvim_win_get_width(0)
+  
+  -- Ensure dashboard is built before rendering
   local dashboard = dashboard_data.get_dashboard()
+  if #dashboard == 0 then
+    local builder = require('luxdash.core.builder')
+    builder.build()
+    dashboard = dashboard_data.get_dashboard()
+  end
   
   -- Apply buffer padding
   local padding = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
@@ -63,7 +70,32 @@ function M.print()
   end
   
   for _, line in ipairs(dashboard) do
-    local padded_text, line_highlights = line_utils.process_line_for_rendering(line, pad_left)
+    -- For logo lines, use pad_left = 0 to bypass renderer padding constraints
+    local line_pad_left = pad_left
+    
+    -- Check if this is a logo line (has logo highlight group)
+    local is_logo_line = false
+    if type(line) == 'table' then
+      if #line > 0 and type(line[1]) == 'table' then
+        -- Complex format - check if any part has logo highlight
+        for _, part in ipairs(line) do
+          if type(part) == 'table' and #part >= 2 and type(part[1]) == 'string' and part[1]:match('^LuxDashLogo') then
+            is_logo_line = true
+            break
+          end
+        end
+      elseif line[1] and type(line[1]) == 'string' and line[1]:match('^LuxDashLogo') then
+        -- Simple format with logo highlight
+        is_logo_line = true
+      end
+    end
+    
+    -- For logo lines, ignore renderer padding constraints and use full window width
+    if is_logo_line then
+      line_pad_left = 0
+    end
+    
+    local padded_text, line_highlights = line_utils.process_line_for_rendering(line, line_pad_left)
     table.insert(lines, padded_text)
     
     for _, hl in ipairs(line_highlights) do
@@ -79,7 +111,7 @@ function M.print()
   vim.api.nvim_buf_set_lines(0, 0, 0, false, lines)
   
   -- Apply highlights
-  M.apply_highlights(lines, all_highlights)
+  line_utils.apply_highlights(all_highlights, lines)
 end
 
 function M.apply_highlights(lines, all_highlights)
