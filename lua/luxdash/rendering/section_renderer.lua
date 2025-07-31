@@ -1,5 +1,5 @@
 local M = {}
-local alignment = require('luxdash.alignment')
+local alignment = require('luxdash.rendering.alignment')
 
 -- Standardized section renderer that handles title, underline, and content with proper alignment
 function M.render_section(section_module, width, height, config)
