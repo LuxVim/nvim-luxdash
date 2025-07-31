@@ -26,52 +26,92 @@ M.config = {
     preset = nil,
     gradient = nil
   },
+  -- Legacy options for menu section - kept for backward compatibility
   options = { 'newfile', 'backtrack', 'fzf', 'closelux' },
   extras = {},
-  bottom_sections = {'menu', 'recent_files', 'git_status'},
-  section_configs = {
-    menu = {
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'top',
-        title_horizontal = 'center',
-        content_horizontal = 'center'
-      },
-      padding = { left = 2, right = 2 },
-      title = 'Actions',
-      show_title = true,
-      show_underline = true
+  
+  -- New modular section configuration
+  sections = {
+    -- Main section (logo area)
+    main = {
+      type = 'logo',
+      config = {
+        title = nil,
+        show_title = false,
+        show_underline = false,
+        alignment = {
+          horizontal = 'center',
+          vertical = 'center'
+        }
+      }
     },
-    recent_files = { 
-      max_files = 10,
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'top',
-        title_horizontal = 'center',
-        content_horizontal = 'left'
+    -- Dynamic bottom sections
+    bottom = {
+      {
+        id = 'actions',
+        type = 'menu',
+        title = 'Actions',
+        config = {
+          show_title = true,
+          show_underline = true,
+          alignment = {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'center'
+          },
+          padding = { left = 2, right = 2 },
+          -- Menu-specific config
+          menu_items = nil, -- Will use options/extras for backward compatibility
+          extras = nil
+        }
       },
-      padding = { left = 2, right = 2 },
-      title = '󰋚 Recent Files',
-      show_title = true
-    },
-    git_status = {
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'top',
-        title_horizontal = 'center',
-        content_horizontal = 'left'
+      {
+        id = 'recent_files',
+        type = 'recent_files',
+        title = '󰋚 Recent Files',
+        config = {
+          show_title = true,
+          show_underline = true,
+          alignment = {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'left'
+          },
+          padding = { left = 2, right = 2 },
+          -- Recent files specific config
+          max_files = 10
+        }
       },
-      padding = { left = 2, right = 2 },
-      title = '󰊢 Git Status',
-      show_title = true
-    },
-    empty = {
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'center'
+      {
+        id = 'git_status',
+        type = 'git_status',
+        title = '󰊢 Git Status',
+        config = {
+          show_title = true,
+          show_underline = true,
+          alignment = {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'left'
+          },
+          padding = { left = 2, right = 2 }
+        }
       }
     }
   },
+  
+  -- Layout configuration
+  layout_config = {
+    main_height_ratio = 0.8, -- Main section takes 80% of height
+    bottom_sections_equal_width = true, -- Equal width for bottom sections
+    section_spacing = 4 -- Total spacing between sections
+  },
+  
+  -- Legacy configs - kept for backward compatibility
+  section_configs = {},
   alignment = {
     logo = { horizontal = 'center', vertical = 'center' },
     menu = { horizontal = 'center', vertical = 'center' }
@@ -94,6 +134,9 @@ M.config = {
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend('force', M.config, opts or {})
+  
+  -- Migrate legacy configuration to new format if needed
+  M.migrate_legacy_config()
   
   -- Setup highlights
   local highlights = require('luxdash.highlights')
@@ -176,6 +219,71 @@ function M.setup(opts)
       end, 10)
     end
   })
+end
+
+-- Migrate legacy configuration to new modular format
+function M.migrate_legacy_config()
+  -- Handle legacy bottom_sections
+  if M.config.bottom_sections then
+    local new_bottom = {}
+    for i, section_name in ipairs(M.config.bottom_sections) do
+      local section_config = M.config.section_configs and M.config.section_configs[section_name] or {}
+      
+      -- Create new section format
+      local new_section = {
+        id = section_name,
+        type = section_name,
+        title = section_config.title or M.get_default_title(section_name),
+        config = vim.tbl_deep_extend('force', {
+          show_title = section_config.show_title ~= false,
+          show_underline = section_config.show_underline ~= false,
+          alignment = section_config.alignment or {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'center'
+          },
+          padding = section_config.padding or { left = 2, right = 2 }
+        }, section_config)
+      }
+      
+      -- Add section-specific configs
+      if section_name == 'menu' then
+        new_section.config.menu_items = M.config.options
+        new_section.config.extras = M.config.extras
+      elseif section_name == 'recent_files' then
+        new_section.config.max_files = section_config.max_files or 10
+      end
+      
+      table.insert(new_bottom, new_section)
+    end
+    
+    M.config.sections.bottom = new_bottom
+    -- Clear legacy config
+    M.config.bottom_sections = nil
+  end
+  
+  -- Handle legacy menu config for actions section
+  if M.config.sections.bottom then
+    for _, section in ipairs(M.config.sections.bottom) do
+      if section.type == 'menu' and not section.config.menu_items then
+        section.config.menu_items = M.config.options
+        section.config.extras = M.config.extras
+      end
+    end
+  end
+end
+
+function M.get_default_title(section_name)
+  local titles = {
+    menu = 'Actions',
+    recent_files = '󰋚 Recent Files',
+    git_status = '󰊢 Git Status',
+    empty = ''
+  }
+  return titles[section_name] or section_name:gsub('_', ' '):gsub('%w+', function(w) 
+    return w:sub(1,1):upper()..w:sub(2) 
+  end)
 end
 
 function M.open()
