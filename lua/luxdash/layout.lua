@@ -15,7 +15,6 @@ function M.calculate_layout(winheight, winwidth, layout_config)
   
   local main_height_ratio = layout_config.main_height_ratio or 0.8
   local section_spacing = layout_config.section_spacing or 4
-  local bottom_sections_equal_width = layout_config.bottom_sections_equal_width ~= false
   
   local main_height = math.floor(winheight * main_height_ratio)
   local bottom_height = winheight - main_height

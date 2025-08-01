@@ -23,9 +23,6 @@ M.config = {
     preset = 'blue',
     gradient = nil
   },
-  -- Legacy options for menu section - kept for backward compatibility
-  options = { 'newfile', 'backtrack', 'fzf', 'closelux' },
-  extras = {},
   
   -- New modular section configuration
   sections = {
@@ -59,8 +56,7 @@ M.config = {
           },
           padding = { left = 2, right = 2 },
           -- Menu-specific config
-          menu_items = nil, -- Will use options/extras for backward compatibility
-          extras = nil
+          menu_items = { 'newfile', 'backtrack', 'fzf', 'closelux' }
         }
       },
       {
@@ -107,12 +103,6 @@ M.config = {
     section_spacing = 4 -- Total spacing between sections
   },
   
-  -- Legacy configs - kept for backward compatibility
-  section_configs = {},
-  alignment = {
-    logo = { horizontal = 'center', vertical = 'center' },
-    menu = { horizontal = 'center', vertical = 'center' }
-  },
   float = {
     width = 0.9,
     height = 0.9,
@@ -132,9 +122,6 @@ M.config = {
 function M.setup(opts)
   M.config = vim.tbl_deep_extend('force', M.config, opts or {})
   
-  -- Migrate legacy configuration to new format if needed
-  local migration = require('luxdash.config.migration')
-  M.config = migration.migrate_legacy_config(M.config)
   
   -- Invalidate all caches when configuration changes
   local cache = require('luxdash.core.cache')
