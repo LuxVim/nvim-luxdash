@@ -1,5 +1,5 @@
 local M = {}
-local alignment = require('luxdash.alignment')
+local alignment = require('luxdash.rendering.alignment')
 
 -- Standardized section renderer that handles title, underline, and content with proper alignment
 function M.render_section(section_module, width, height, config)
@@ -63,12 +63,25 @@ function M.render_section(section_module, width, height, config)
       if #line >= 2 and type(line[1]) == 'string' and type(line[2]) == 'string' then
         -- Simple format: {highlight, text}
         local text = line[2]
-        local aligned_text = alignment.align_text(text, width, content_alignment, padding)
-        table.insert(content, {line[1], aligned_text})
+        local highlight_group = line[1]
+        local aligned_text = alignment.align_text_with_highlight(text, width, content_alignment, padding, highlight_group)
+        table.insert(content, {highlight_group, aligned_text})
       elseif #line > 0 and type(line[1]) == 'table' then
         -- Complex format: {{highlight, text}, {highlight, text}, ...}
-        -- For now, pass through as-is since alignment is handled at render time
-        table.insert(content, line)
+        -- Apply padding by modifying the line structure
+        if padding and (padding.left or 0) > 0 then
+          -- Add left padding to the complex line
+          local padded_line = {}
+          -- Add padding as first part
+          table.insert(padded_line, {'Normal', string.rep(' ', padding.left)})
+          -- Add all original parts
+          for _, part in ipairs(line) do
+            table.insert(padded_line, part)
+          end
+          table.insert(content, padded_line)
+        else
+          table.insert(content, line)
+        end
       else
         -- Unknown table format - convert to string
         local text = tostring(line)
@@ -83,14 +96,17 @@ function M.render_section(section_module, width, height, config)
     end
   end
   
-  -- Ensure content doesn't exceed allocated height by truncating if necessary
-  local max_content_height = height
-  if #content > max_content_height then
-    local truncated_content = {}
-    for i = 1, max_content_height do
-      table.insert(truncated_content, content[i])
+  -- For main sections (logo), allow content to exceed allocated height
+  -- For sub-sections, ensure content doesn't exceed allocated height by truncating if necessary
+  if section_type ~= 'main' then
+    local max_content_height = height
+    if #content > max_content_height then
+      local truncated_content = {}
+      for i = 1, max_content_height do
+        table.insert(truncated_content, content[i])
+      end
+      content = truncated_content
     end
-    content = truncated_content
   end
   
   -- Apply vertical alignment

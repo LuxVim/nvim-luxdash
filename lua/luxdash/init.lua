@@ -1,8 +1,5 @@
 local M = {}
 
--- Track window dimensions globally
-local win_dimensions = {}
-
 M.config = {
   name = 'LuxDash',
   layout = 'horizontal',
@@ -23,55 +20,95 @@ M.config = {
     '',
   },
   logo_color = {
-    preset = nil,
+    preset = 'blue',
     gradient = nil
   },
+  -- Legacy options for menu section - kept for backward compatibility
   options = { 'newfile', 'backtrack', 'fzf', 'closelux' },
   extras = {},
-  bottom_sections = {'menu', 'recent_files', 'git_status'},
-  section_configs = {
-    menu = {
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'top',
-        title_horizontal = 'center',
-        content_horizontal = 'center'
-      },
-      padding = { left = 2, right = 2 },
-      title = 'Actions',
-      show_title = true,
-      show_underline = true
+  
+  -- New modular section configuration
+  sections = {
+    -- Main section (logo area)
+    main = {
+      type = 'logo',
+      config = {
+        title = nil,
+        show_title = false,
+        show_underline = false,
+        alignment = {
+          horizontal = 'center',
+          vertical = 'center'
+        }
+      }
     },
-    recent_files = { 
-      max_files = 10,
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'top',
-        title_horizontal = 'center',
-        content_horizontal = 'left'
+    -- Dynamic bottom sections
+    bottom = {
+      {
+        id = 'actions',
+        type = 'menu',
+        title = 'Actions',
+        config = {
+          show_title = true,
+          show_underline = true,
+          alignment = {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'center'
+          },
+          padding = { left = 2, right = 2 },
+          -- Menu-specific config
+          menu_items = nil, -- Will use options/extras for backward compatibility
+          extras = nil
+        }
       },
-      padding = { left = 2, right = 2 },
-      title = '󰋚 Recent Files',
-      show_title = true
-    },
-    git_status = {
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'top',
-        title_horizontal = 'center',
-        content_horizontal = 'left'
+      {
+        id = 'recent_files',
+        type = 'recent_files',
+        title = '󰋚 Recent Files',
+        config = {
+          show_title = true,
+          show_underline = true,
+          alignment = {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'left'
+          },
+          padding = { left = 2, right = 2 },
+          -- Recent files specific config
+          max_files = 10
+        }
       },
-      padding = { left = 2, right = 2 },
-      title = '󰊢 Git Status',
-      show_title = true
-    },
-    empty = {
-      alignment = { 
-        horizontal = 'center', 
-        vertical = 'center'
+      {
+        id = 'git_status',
+        type = 'git_status',
+        title = '󰊢 Git Status',
+        config = {
+          show_title = true,
+          show_underline = true,
+          alignment = {
+            horizontal = 'center',
+            vertical = 'top',
+            title_horizontal = 'center',
+            content_horizontal = 'left'
+          },
+          padding = { left = 2, right = 2 }
+        }
       }
     }
   },
+  
+  -- Layout configuration
+  layout_config = {
+    main_height_ratio = 0.8, -- Main section takes 80% of height
+    bottom_sections_equal_width = true, -- Equal width for bottom sections
+    section_spacing = 4 -- Total spacing between sections
+  },
+  
+  -- Legacy configs - kept for backward compatibility
+  section_configs = {},
   alignment = {
     logo = { horizontal = 'center', vertical = 'center' },
     menu = { horizontal = 'center', vertical = 'center' }
@@ -95,95 +132,42 @@ M.config = {
 function M.setup(opts)
   M.config = vim.tbl_deep_extend('force', M.config, opts or {})
   
+  -- Migrate legacy configuration to new format if needed
+  local migration = require('luxdash.config.migration')
+  M.config = migration.migrate_legacy_config(M.config)
+  
+  -- Invalidate all caches when configuration changes
+  local cache = require('luxdash.core.cache')
+  cache.invalidate_all()
+  
+  -- Clear color cache when configuration changes
+  local colors = require('luxdash.rendering.colors')
+  colors.clear_color_cache()
+  
   -- Setup highlights
-  local highlights = require('luxdash.highlights')
+  local highlights = require('luxdash.rendering.highlights')
   highlights.setup()
   
-  local float = require('luxdash.float')
-  float.setup(M.config.float or {})
+  local float_manager = require('luxdash.ui.float_manager')
+  float_manager.setup(M.config.float or {})
   
   vim.api.nvim_create_user_command('LuxDash', function()
-    float.toggle()
+    float_manager.toggle()
   end, { desc = 'Toggle LuxDash floating window' })
   
-  local group = vim.api.nvim_create_augroup('LuxDash', { clear = true })
-  
-  vim.api.nvim_create_autocmd('VimEnter', {
-    group = group,
-    callback = function()
-      if vim.fn.argc() == 0 then
-        M.open()
-      end
-    end
-  })
-  
-  vim.api.nvim_create_autocmd('VimResized', {
-    group = group,
-    callback = function()
-      require('luxdash.core').resize()
-    end
-  })
-  
-  -- Track window size changes for luxdash buffers
-  local function check_and_resize_luxdash()
-    local bufnr = vim.api.nvim_get_current_buf()
-    if vim.api.nvim_buf_get_option(bufnr, 'filetype') == 'luxdash' then
-      local winnr = vim.api.nvim_get_current_win()
-      local width = vim.api.nvim_win_get_width(winnr)
-      local height = vim.api.nvim_win_get_height(winnr)
-      local key = winnr .. '_' .. bufnr
-      
-      if not win_dimensions[key] or 
-         win_dimensions[key].width ~= width or 
-         win_dimensions[key].height ~= height then
-        
-        win_dimensions[key] = {width = width, height = height}
-        require('luxdash.core').resize()
-      end
-    end
-  end
-  
-  vim.api.nvim_create_autocmd({'WinEnter', 'BufWinEnter'}, {
-    group = group,
-    callback = check_and_resize_luxdash
-  })
-  
-  -- Also check on window leave to catch nvim-tree toggles
-  vim.api.nvim_create_autocmd('WinLeave', {
-    group = group,
-    callback = function()
-      -- Delay check to allow window operations to complete
-      vim.defer_fn(function()
-        for _, winnr in ipairs(vim.api.nvim_list_wins()) do
-          local bufnr = vim.api.nvim_win_get_buf(winnr)
-          if vim.api.nvim_buf_get_option(bufnr, 'filetype') == 'luxdash' then
-            local width = vim.api.nvim_win_get_width(winnr)
-            local height = vim.api.nvim_win_get_height(winnr)
-            local key = winnr .. '_' .. bufnr
-            
-            if not win_dimensions[key] or 
-               win_dimensions[key].width ~= width or 
-               win_dimensions[key].height ~= height then
-              
-              win_dimensions[key] = {width = width, height = height}
-              local current_win = vim.api.nvim_get_current_win()
-              vim.api.nvim_set_current_win(winnr)
-              require('luxdash.core').resize()
-              vim.api.nvim_set_current_win(current_win)
-            end
-          end
-        end
-      end, 10)
-    end
-  })
+  -- Setup autocmds
+  local autocmds = require('luxdash.events.autocmds')
+  autocmds.setup()
 end
 
+
 function M.open()
-  require('luxdash.core').open()
+    require('luxdash.core').open()
 end
 
 function M.toggle()
-  require('luxdash.float').toggle()
+    local float_manager = require('luxdash.ui.float_manager')
+    float_manager.toggle()
 end
 
 return M

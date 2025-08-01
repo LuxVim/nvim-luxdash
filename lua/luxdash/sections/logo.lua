@@ -1,5 +1,5 @@
 local M = {}
-local colors = require('luxdash.colors')
+local colors = require('luxdash.rendering.colors')
 
 function M.render(width, height, config)
   local logo = config.logo or {}
@@ -9,7 +9,9 @@ function M.render(width, height, config)
     return {}
   end
   
-  local colored_logo = colors.apply_logo_color(logo, logo_color)
+  -- Pass window width for caching optimization
+  local window_width = vim.api.nvim_win_get_width(0)
+  local colored_logo = colors.apply_logo_color(logo, logo_color, window_width)
   return colored_logo
 end
 

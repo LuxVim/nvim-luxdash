@@ -5,7 +5,7 @@ function M.command()
     keymap = "b",
     label = "Backtrack",
     command = function()
-      local float = require('luxdash.float')
+      local float = require('luxdash.ui.float_manager')
       if float.is_open() then
         float.close()
       end

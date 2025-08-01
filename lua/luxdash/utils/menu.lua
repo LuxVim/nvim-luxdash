@@ -1,20 +1,9 @@
 local M = {}
-local highlights = require('luxdash.highlights')
+local highlights = require('luxdash.rendering.highlights')
+local icons = require('luxdash.utils.icons')
 
 local menu_options = {}
 local menu_width = 30
-
--- Generic icons for menu items
-local default_icons = {
-  newfile = '󰷈',
-  backtrack = '󰋚',
-  fzf = '󰍉',
-  closelux = '󰅖',
-  new = '󰷈',
-  recent = '󰋚',
-  search = '󰍉',
-  quit = '󰅖'
-}
 
 function M.options(modules)
   menu_options = {}
@@ -24,7 +13,7 @@ function M.options(modules)
     
     if info.keymap and info.keymap ~= '' and info.command then
       local label = info.label or name:gsub('^%l', string.upper)
-      local icon = info.icon or default_icons[name] or '󰘬'
+      local icon = info.icon or icons.get_icon(name)
       
       -- Format: icon + label + spaces + [key]
       local text_part = icon .. '  ' .. label
