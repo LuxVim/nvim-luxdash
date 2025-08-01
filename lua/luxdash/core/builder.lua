@@ -102,11 +102,7 @@ function M.render_bottom_sections(config, layout_data)
         if render_config.menu_items and type(render_config.menu_items[1]) == 'string' then
           -- Convert string array to processed menu items
           render_config.menu_items = menu.options(render_config.menu_items)
-        elseif not render_config.menu_items then
-          -- Fallback to legacy config.options
-          render_config.menu_items = menu.options(config.options or {})
         end
-        render_config.extras = render_config.extras or config.extras or {}
       end
       
       -- Apply alignment from config
