@@ -68,8 +68,20 @@ function M.render_section(section_module, width, height, config)
         table.insert(content, {highlight_group, aligned_text})
       elseif #line > 0 and type(line[1]) == 'table' then
         -- Complex format: {{highlight, text}, {highlight, text}, ...}
-        -- For now, pass through as-is since alignment is handled at render time
-        table.insert(content, line)
+        -- Apply padding by modifying the line structure
+        if padding and (padding.left or 0) > 0 then
+          -- Add left padding to the complex line
+          local padded_line = {}
+          -- Add padding as first part
+          table.insert(padded_line, {'Normal', string.rep(' ', padding.left)})
+          -- Add all original parts
+          for _, part in ipairs(line) do
+            table.insert(padded_line, part)
+          end
+          table.insert(content, padded_line)
+        else
+          table.insert(content, line)
+        end
       else
         -- Unknown table format - convert to string
         local text = tostring(line)

@@ -99,7 +99,13 @@ function M.render_bottom_sections(config, layout_data)
       -- Handle menu-specific config migration
       if section_def.type == 'menu' then
         local menu = require('luxdash.utils.menu')
-        render_config.menu_items = render_config.menu_items or menu.options(config.options or {})
+        if render_config.menu_items and type(render_config.menu_items[1]) == 'string' then
+          -- Convert string array to processed menu items
+          render_config.menu_items = menu.options(render_config.menu_items)
+        elseif not render_config.menu_items then
+          -- Fallback to legacy config.options
+          render_config.menu_items = menu.options(config.options or {})
+        end
         render_config.extras = render_config.extras or config.extras or {}
       end
       
