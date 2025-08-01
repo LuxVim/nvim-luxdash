@@ -1,11 +1,9 @@
 local M = {}
+local width_utils = require('luxdash.utils.width')
 
 -- Align text horizontally within given width with optional padding
 function M.align_text(text, width, alignment, padding)
-  -- Ensure text is a string
   local text_str = tostring(text or '')
-  -- Use display width for Braille characters which may have special rendering
-  local text_width = vim.fn.strdisplaywidth(text_str)
   
   -- Apply padding if provided
   local left_pad = padding and padding.left or 0
@@ -14,19 +12,17 @@ function M.align_text(text, width, alignment, padding)
   
   local result
   if alignment == 'left' then
-    local pad_right = math.max(0, available_width - text_width)
-    result = text_str .. string.rep(' ', pad_right)
+    result = width_utils.left_align_text(text_str, available_width)
   elseif alignment == 'right' then
-    local pad_left = math.max(0, available_width - text_width)
-    result = string.rep(' ', pad_left) .. text_str
+    result = width_utils.right_align_text(text_str, available_width)
   else -- center
-    local pad_left = math.max(0, math.floor((available_width - text_width) / 2))
-    local pad_right = math.max(0, available_width - pad_left - text_width)
-    result = string.rep(' ', pad_left) .. text_str .. string.rep(' ', pad_right)
+    result = width_utils.center_text(text_str, available_width)
   end
   
   -- Add section padding
-  return string.rep(' ', left_pad) .. result .. string.rep(' ', right_pad)
+  local left_padding = width_utils.get_padding(left_pad)
+  local right_padding = width_utils.get_padding(right_pad)
+  return left_padding .. result .. right_padding
 end
 
 -- Align text with highlight group, ensuring highlight covers the full aligned width
@@ -60,8 +56,9 @@ function M.apply_vertical_alignment(content, width, height, alignment, section_t
   local aligned = {}
   
   -- Add top padding
+  local empty_line = width_utils.get_padding(width)
   for _ = 1, pad_top do
-    table.insert(aligned, string.rep(' ', width))
+    table.insert(aligned, empty_line)
   end
   
   -- Add content
@@ -72,8 +69,9 @@ function M.apply_vertical_alignment(content, width, height, alignment, section_t
   -- Add bottom padding (only for sub-sections or when content doesn't exceed height)
   if section_type == 'sub' or #aligned <= height then
     local remaining_lines = height - #aligned
+    local empty_line = width_utils.get_padding(width)
     for _ = 1, remaining_lines do
-      table.insert(aligned, string.rep(' ', width))
+      table.insert(aligned, empty_line)
     end
   end
   

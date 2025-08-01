@@ -17,7 +17,7 @@ function M.setup()
     group = group,
     callback = function()
       local resizer = require('luxdash.core.resizer')
-      resizer.resize()
+      resizer.resize_debounced()
     end
   })
   

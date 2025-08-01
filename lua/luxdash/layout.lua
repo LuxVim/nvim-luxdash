@@ -1,7 +1,17 @@
 local M = {}
+local cache = require('luxdash.core.cache')
 
 function M.calculate_layout(winheight, winwidth, layout_config)
   layout_config = layout_config or {}
+  
+  -- Create cache key for layout
+  local config_hash = cache.hash_table(layout_config)
+  
+  -- Check cache first
+  local cached_layout = cache.get_layout(winwidth, winheight, config_hash)
+  if cached_layout then
+    return cached_layout
+  end
   
   local main_height_ratio = layout_config.main_height_ratio or 0.8
   local section_spacing = layout_config.section_spacing or 4
@@ -20,7 +30,7 @@ function M.calculate_layout(winheight, winwidth, layout_config)
   local bottom_center_width = bottom_section_width
   local bottom_right_width = available_width - bottom_left_width - bottom_center_width
   
-  return {
+  local layout_data = {
     main = {
       height = main_height,
       width = main_width
@@ -33,6 +43,9 @@ function M.calculate_layout(winheight, winwidth, layout_config)
       right = { width = bottom_right_width, height = bottom_height }
     }
   }
+  
+  -- Cache the result
+  return cache.set_layout(layout_data, winwidth, winheight, config_hash)
 end
 
 function M.load_section(section_name)

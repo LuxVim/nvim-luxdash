@@ -1,9 +1,12 @@
 local M = {}
 local dashboard_data = require('luxdash.core.dashboard')
 local line_utils = require('luxdash.rendering.line_utils')
+local highlight_pool = require('luxdash.core.highlight_pool')
+local width_utils = require('luxdash.utils.width')
 
 function M.clear()
   vim.api.nvim_buf_set_lines(0, 0, -1, false, {})
+  highlight_pool.clear_all_namespaces()
 end
 
 function M.draw()

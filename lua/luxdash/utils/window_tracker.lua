@@ -1,4 +1,5 @@
 local M = {}
+local debouncer = require('luxdash.core.debouncer')
 
 -- Track window dimensions globally
 local win_dimensions = {}
@@ -32,13 +33,20 @@ function M.check_and_resize_luxdash()
     
     if M.has_changed(key, width, height) then
       M.set_dimensions(key, width, height)
-      local resizer = require('luxdash.core.resizer')
-      resizer.resize()
+      
+      -- Use debounced resize for window changes
+      debouncer.debounce_window_change(winnr, function()
+        local resizer = require('luxdash.core.resizer')
+        resizer.resize_immediate()
+      end)
     end
   end
 end
 
 function M.check_all_luxdash_windows()
+  local windows_to_resize = {}
+  
+  -- Collect all windows that need resizing
   for _, winnr in ipairs(vim.api.nvim_list_wins()) do
     local bufnr = vim.api.nvim_win_get_buf(winnr)
     if vim.api.nvim_buf_get_option(bufnr, 'filetype') == 'luxdash' then
@@ -48,13 +56,28 @@ function M.check_all_luxdash_windows()
       
       if M.has_changed(key, width, height) then
         M.set_dimensions(key, width, height)
-        local current_win = vim.api.nvim_get_current_win()
-        vim.api.nvim_set_current_win(winnr)
-        local resizer = require('luxdash.core.resizer')
-        resizer.resize()
-        vim.api.nvim_set_current_win(current_win)
+        table.insert(windows_to_resize, winnr)
       end
     end
+  end
+  
+  -- Batch resize all affected windows
+  if #windows_to_resize > 0 then
+    debouncer.debounce('batch_window_resize', function()
+      local current_win = vim.api.nvim_get_current_win()
+      local resizer = require('luxdash.core.resizer')
+      
+      for _, winnr in ipairs(windows_to_resize) do
+        if vim.api.nvim_win_is_valid(winnr) then
+          vim.api.nvim_set_current_win(winnr)
+          resizer.resize_immediate()
+        end
+      end
+      
+      if vim.api.nvim_win_is_valid(current_win) then
+        vim.api.nvim_set_current_win(current_win)
+      end
+    end, 25)
   end
 end
 

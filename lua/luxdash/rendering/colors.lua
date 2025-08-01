@@ -1,9 +1,16 @@
 local M = {}
+local cache = require('luxdash.core.cache')
+local highlight_pool = require('luxdash.core.highlight_pool')
+local width_utils = require('luxdash.utils.width')
 
 local color_presets = {
     blue = '#569cd6', green = '#4ec9b0', red = '#f44747', yellow = '#dcdcaa',
     purple = '#c586c0', orange = '#ce9178', pink = '#f392b1', cyan = '#4dd0e1'
 }
+
+-- Cache for computed colors and highlight groups
+local color_cache = {}
+local highlight_group_cache = {}
 
 function M.create_full_row_highlight_line(highlight_group, text)
   return {
@@ -13,8 +20,43 @@ function M.create_full_row_highlight_line(highlight_group, text)
   }
 end
 
-function M.apply_logo_color(logo, color_config)
+function M.get_cached_color(color1, color2, ratio)
+  local cache_key = color1 .. '_' .. color2 .. '_' .. tostring(ratio)
+  if color_cache[cache_key] then
+    return color_cache[cache_key]
+  end
+  
+  local color = M.interpolate_color(color1, color2, ratio)
+  color_cache[cache_key] = color
+  return color
+end
+
+function M.get_cached_highlight_group(base_name, index, color)
+  local hl_name = base_name .. index
+  if not highlight_group_cache[hl_name] then
+    highlight_pool.create_highlight_group(hl_name, {fg = color})
+    highlight_group_cache[hl_name] = true
+  end
+  return hl_name
+end
+
+function M.clear_color_cache()
+  color_cache = {}
+  highlight_group_cache = {}
+end
+
+function M.apply_logo_color(logo, color_config, window_width)
   if not color_config then return logo end
+  
+  -- Create cache key for logo processing
+  local logo_hash = cache.hash_table(logo)
+  local color_hash = cache.hash_table(color_config)
+  
+  -- Check cache first
+  local cached_logo = cache.get_logo(logo_hash, color_hash, window_width)
+  if cached_logo then
+    return cached_logo
+  end
   
   local colored_logo = {}
   
@@ -28,6 +70,8 @@ function M.apply_logo_color(logo, color_config)
     return logo
   end
   
+  -- Cache the result
+  cache.set_logo(colored_logo, logo_hash, color_hash, window_width)
   return colored_logo
 end
 
@@ -36,14 +80,13 @@ function M.apply_row_gradient(logo, colored_logo, gradient_config)
   local end_color = gradient_config.bottom
   local logo_lines = #logo
   
-  vim.api.nvim_set_hl(0, 'LuxDashLogo', {})
+  highlight_pool.create_highlight_group('LuxDashLogo', {})
   
   for i, line in ipairs(logo) do
     local ratio = (i - 1) / math.max(1, logo_lines - 1)
-    local hl_name = 'LuxDashLogoRowGradient' .. i
-    local color = M.interpolate_color(start_color, end_color, ratio)
+    local color = M.get_cached_color(start_color, end_color, ratio)
+    local hl_name = M.get_cached_highlight_group('LuxDashLogoRowGradient', i, color)
     
-    vim.api.nvim_set_hl(0, hl_name, {fg = color})
     table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
   end
 end
@@ -55,17 +98,16 @@ function M.apply_gradient(logo, colored_logo, gradient_config)
   
   for i, line in ipairs(logo) do
     local ratio = (i - 1) / math.max(1, logo_lines - 1)
-    local hl_name = 'LuxDashLogoGradient' .. i
-    local color = M.interpolate_color(top_color, bottom_color, ratio)
+    local color = M.get_cached_color(top_color, bottom_color, ratio)
+    local hl_name = M.get_cached_highlight_group('LuxDashLogoGradient', i, color)
     
-    vim.api.nvim_set_hl(0, hl_name, {fg = color})
     table.insert(colored_logo, M.create_full_row_highlight_line(hl_name, line))
   end
 end
 
 function M.apply_preset(logo, colored_logo, preset)
   local color = color_presets[preset] or preset
-  vim.api.nvim_set_hl(0, 'LuxDashLogo', {fg = color})
+  highlight_pool.create_highlight_group('LuxDashLogo', {fg = color})
   
   for _, line in ipairs(logo) do
     table.insert(colored_logo, M.create_full_row_highlight_line('LuxDashLogo', line))

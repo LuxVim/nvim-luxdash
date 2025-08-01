@@ -1,4 +1,10 @@
 local M = {}
+local width_utils = require('luxdash.utils.width')
+local highlight_pool = require('luxdash.core.highlight_pool')
+
+-- Reusable objects to reduce memory allocation
+local temp_highlights = {}
+local temp_parts = {}
 
 function M.process_logo_line(line)
   local highlight_group = line[1][1]
@@ -84,7 +90,12 @@ end
 
 function M.combine_line_parts(parts)
   local combined_text = ''
-  local highlights = {}
+  
+  -- Clear and reuse highlights table to reduce allocation
+  for i = #temp_highlights, 1, -1 do
+    temp_highlights[i] = nil
+  end
+  
   local col_offset = 0
   
   for _, part in ipairs(parts) do
@@ -97,14 +108,16 @@ function M.combine_line_parts(parts)
         combined_text = combined_text .. part_text
         
         if part_hl and type(part_hl) == 'string' then
-          table.insert(highlights, {
+          local text_width = width_utils.get_byte_width(part_text)
+          table.insert(temp_highlights, {
             hl_group = part_hl,
             start_col = col_offset,
-            end_col = col_offset + vim.fn.strwidth(part_text)
+            end_col = col_offset + text_width
           })
+          col_offset = col_offset + text_width
+        else
+          col_offset = col_offset + width_utils.get_byte_width(part_text)
         end
-        
-        col_offset = col_offset + vim.fn.strwidth(part_text)
       elseif #part > 0 and type(part[1]) == 'table' then
         -- Complex format: {{highlight, text}, {highlight, text}, ...}
         for _, subpart in ipairs(part) do
@@ -115,14 +128,16 @@ function M.combine_line_parts(parts)
             combined_text = combined_text .. subpart_text
             
             if subpart_hl and type(subpart_hl) == 'string' then
-              table.insert(highlights, {
+              local text_width = width_utils.get_byte_width(subpart_text)
+              table.insert(temp_highlights, {
                 hl_group = subpart_hl,
                 start_col = col_offset,
-                end_col = col_offset + vim.fn.strwidth(subpart_text)
+                end_col = col_offset + text_width
               })
+              col_offset = col_offset + text_width
+            else
+              col_offset = col_offset + width_utils.get_byte_width(subpart_text)
             end
-            
-            col_offset = col_offset + vim.fn.strwidth(subpart_text)
           end
         end
       end
@@ -130,12 +145,17 @@ function M.combine_line_parts(parts)
       -- Plain text
       local part_text = tostring(part)
       combined_text = combined_text .. part_text
-      col_offset = col_offset + vim.fn.strwidth(part_text)
+      col_offset = col_offset + width_utils.get_byte_width(part_text)
     end
   end
   
-  if #highlights > 0 then
-    return {combined_text, highlights}
+  if #temp_highlights > 0 then
+    -- Return a copy of highlights to avoid mutation
+    local highlights_copy = {}
+    for i, hl in ipairs(temp_highlights) do
+      highlights_copy[i] = hl
+    end
+    return {combined_text, highlights_copy}
   else
     return combined_text
   end
@@ -244,6 +264,7 @@ function M.process_line_for_rendering(line, pad_left)
             
             -- For logo highlights, recreate the padded_text to span full width
             local original_text = tostring(text)
+            local winwidth = vim.api.nvim_win_get_width(0)
             local content_display_width = vim.fn.strdisplaywidth(original_text)
             local total_padding_needed = winwidth - content_display_width
             local left_pad_size = math.max(0, math.floor(total_padding_needed / 2))
@@ -320,7 +341,6 @@ function M.process_line_for_rendering(line, pad_left)
               padded_text = padded_text:sub(1, highlight_end)
             end
           end
-          
           
           -- STEP 3: Set highlight to match the content we created
           end_col = highlight_end

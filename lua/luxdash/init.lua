@@ -136,6 +136,14 @@ function M.setup(opts)
   local migration = require('luxdash.config.migration')
   M.config = migration.migrate_legacy_config(M.config)
   
+  -- Invalidate all caches when configuration changes
+  local cache = require('luxdash.core.cache')
+  cache.invalidate_all()
+  
+  -- Clear color cache when configuration changes
+  local colors = require('luxdash.rendering.colors')
+  colors.clear_color_cache()
+  
   -- Setup highlights
   local highlights = require('luxdash.rendering.highlights')
   highlights.setup()
