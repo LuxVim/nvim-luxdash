@@ -36,6 +36,15 @@ function M.setup()
       end, 10)
     end
   })
+  
+  -- Re-apply highlights when colorscheme changes
+  vim.api.nvim_create_autocmd('ColorScheme', {
+    group = group,
+    callback = function()
+      local highlights = require('luxdash.rendering.highlights')
+      highlights.setup()
+    end
+  })
 end
 
 return M

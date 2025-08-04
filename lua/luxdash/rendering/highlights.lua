@@ -24,10 +24,12 @@ M.groups = {
   -- Recent files highlights
   LuxDashRecentFile = { fg = '#d4d4d4' },
   LuxDashRecentPath = { fg = '#9cdcfe' },
+  LuxDashRecentIcon = { fg = '#4ec9b0' },
+  LuxDashRecentKey = { fg = '#ff0000', bold = true },
   
   -- Git status highlights
   LuxDashGitBranch = { fg = '#4ec9b0' },
-  LuxDashGitModified = { fg = '#dcdcaa' },
+  LuxDashGitModified = { fg = '#00ff00' },
   LuxDashGitAdded = { fg = '#4ec9b0' },
   LuxDashGitDeleted = { fg = '#f44747' },
   LuxDashGitUntracked = { fg = '#ce9178' },
