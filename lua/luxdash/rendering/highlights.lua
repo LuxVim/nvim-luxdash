@@ -27,13 +27,16 @@ M.groups = {
   LuxDashRecentIcon = { fg = '#ff7801' },
   LuxDashRecentKey = { fg = '#db2dee', bold = true },
   
-  -- Git status highlights
-  LuxDashGitBranch = { fg = '#4ec9b0' },
-  LuxDashGitModified = { fg = '#00ff00' },
-  LuxDashGitAdded = { fg = '#4ec9b0' },
-  LuxDashGitDeleted = { fg = '#f44747' },
-  LuxDashGitUntracked = { fg = '#ce9178' },
-  LuxDashGitClean = { fg = '#4ec9b0' },
+  -- Git status highlights using standard git colors
+  LuxDashGitBranch = { fg = '#58a6ff', bold = true },     -- Blue for branch
+  LuxDashGitModified = { fg = '#f0883e' },                -- Orange for modified (M)
+  LuxDashGitAdded = { fg = '#3fb950' },                   -- Green for staged/added (A)
+  LuxDashGitDeleted = { fg = '#f85149' },                 -- Red for deleted (D)
+  LuxDashGitUntracked = { fg = '#8b949e' },               -- Gray for untracked (?)
+  LuxDashGitClean = { fg = '#3fb950', bold = true },      -- Green for clean status
+  LuxDashGitCommit = { fg = '#d2a8ff' },                  -- Purple for commit info
+  LuxDashGitDiff = { fg = '#58a6ff' },                    -- Blue for diff stats
+  LuxDashGitSync = { fg = '#f0883e' },                    -- Orange for sync status
   
   -- Logo highlights (existing)
   LuxDashLogo = { fg = '#569cd6' },
