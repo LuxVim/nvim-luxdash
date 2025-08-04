@@ -108,15 +108,15 @@ function M.combine_line_parts(parts)
         combined_text = combined_text .. part_text
         
         if part_hl and type(part_hl) == 'string' then
-          local text_width = width_utils.get_byte_width(part_text)
+          local text_byte_len = vim.fn.strlen(part_text)
           table.insert(temp_highlights, {
             hl_group = part_hl,
             start_col = col_offset,
-            end_col = col_offset + text_width
+            end_col = col_offset + text_byte_len
           })
-          col_offset = col_offset + text_width
+          col_offset = col_offset + text_byte_len
         else
-          col_offset = col_offset + width_utils.get_byte_width(part_text)
+          col_offset = col_offset + vim.fn.strlen(part_text)
         end
       elseif #part > 0 and type(part[1]) == 'table' then
         -- Complex format: {{highlight, text}, {highlight, text}, ...}
@@ -128,15 +128,15 @@ function M.combine_line_parts(parts)
             combined_text = combined_text .. subpart_text
             
             if subpart_hl and type(subpart_hl) == 'string' then
-              local text_width = width_utils.get_byte_width(subpart_text)
+              local text_byte_len = vim.fn.strlen(subpart_text)
               table.insert(temp_highlights, {
                 hl_group = subpart_hl,
                 start_col = col_offset,
-                end_col = col_offset + text_width
+                end_col = col_offset + text_byte_len
               })
-              col_offset = col_offset + text_width
+              col_offset = col_offset + text_byte_len
             else
-              col_offset = col_offset + width_utils.get_byte_width(subpart_text)
+              col_offset = col_offset + vim.fn.strlen(subpart_text)
             end
           end
         end
@@ -145,7 +145,7 @@ function M.combine_line_parts(parts)
       -- Plain text
       local part_text = tostring(part)
       combined_text = combined_text .. part_text
-      col_offset = col_offset + width_utils.get_byte_width(part_text)
+      col_offset = col_offset + vim.fn.strlen(part_text)
     end
   end
   

@@ -182,12 +182,17 @@ end
 function M.combine_sections_horizontally(sections_content, height)
   -- Helper function to ensure exact width
   local function ensure_exact_width(line, target_width)
-    -- For complex format lines, use line_utils to properly handle width
+    -- For complex format lines, calculate width without double-processing
     if type(line) == 'table' and #line > 0 and type(line[1]) == 'table' then
       -- Complex format: {{highlight, text}, {highlight, text}, ...}
-      local combined = line_utils.combine_line_parts({line})
-      local text = type(combined) == 'table' and combined[1] or combined
-      local text_width = vim.fn.strwidth(text)
+      -- Calculate text width directly without using combine_line_parts to avoid double processing
+      local text_width = 0
+      for _, part in ipairs(line) do
+        if type(part) == 'table' and #part >= 2 then
+          local part_text = tostring(part[2] or '')
+          text_width = text_width + vim.fn.strwidth(part_text)
+        end
+      end
       
       if text_width < target_width then
         -- Add padding by appending spaces to the combined text
@@ -269,6 +274,7 @@ function M.combine_sections_horizontally(sections_content, height)
       end
     end
     
+    -- Combine line parts while preserving section boundaries for proper highlighting
     local combined_line = line_utils.combine_line_parts(line_parts)
     dashboard_data.add_line(combined_line)
   end
