@@ -20,8 +20,10 @@ M.config = {
     '',
   },
   logo_color = {
-    preset = 'blue',
-    gradient = nil
+    row_gradient = {
+      start = '#ff7801',
+      bottom = '#db2dee'
+    }
   },
   
   -- New modular section configuration
@@ -44,7 +46,7 @@ M.config = {
       {
         id = 'actions',
         type = 'menu',
-        title = 'Actions',
+        title = '⚡ Actions',
         config = {
           show_title = true,
           show_underline = true,
@@ -62,7 +64,7 @@ M.config = {
       {
         id = 'recent_files',
         type = 'recent_files',
-        title = '󰋚 Recent Files',
+        title = '📁 Recent Files',
         config = {
           show_title = true,
           show_underline = true,
@@ -74,13 +76,13 @@ M.config = {
           },
           padding = { left = 2, right = 2 },
           -- Recent files specific config
-          max_files = 10
+          max_files = 8
         }
       },
       {
         id = 'git_status',
         type = 'git_status',
-        title = '󰊢 Git Status',
+        title = '🌿 Git Status',
         config = {
           show_title = true,
           show_underline = true,
