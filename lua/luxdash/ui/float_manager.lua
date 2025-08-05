@@ -24,6 +24,17 @@ end
 
 function M.close()
   if M.is_open() then
+    -- Clear recent files keymaps before closing
+    if float_buf and vim.api.nvim_buf_is_valid(float_buf) then
+      local recent_files = require('luxdash.sections.recent_files')
+      local old_buf = vim.api.nvim_get_current_buf()
+      pcall(vim.api.nvim_set_current_buf, float_buf)
+      pcall(recent_files.clear_file_keymaps)
+      if vim.api.nvim_buf_is_valid(old_buf) then
+        pcall(vim.api.nvim_set_current_buf, old_buf)
+      end
+    end
+    
     vim.api.nvim_win_close(float_win, true)
     float_win = nil
   end

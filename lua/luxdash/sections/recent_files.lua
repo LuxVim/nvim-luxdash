@@ -1,7 +1,19 @@
 local M = {}
 
 function M.render(width, height, config)
+  -- Clear any existing keymaps for this section first
+  M.clear_file_keymaps()
+  
   local max_files = config.max_files or 10
+  
+  -- Account for section padding that will be applied by section renderer
+  local content_width = width
+  if config.padding then
+    local left_padding = config.padding.left or 0
+    local right_padding = config.padding.right or 0
+    content_width = width - left_padding - right_padding
+  end
+  
   -- Calculate available height for content (subtract title and underline if present)
   local available_height = height
   if config.show_title ~= false then
@@ -33,21 +45,32 @@ function M.render(width, height, config)
       local icon = M.get_file_icon(file)
       local key_part = '[' .. tostring(i) .. ']'
       
-      -- Calculate exact width for filename to maintain alignment
+      -- Calculate exact width for filename to maintain alignment within content width
+      -- Priority: icon + key + minimum padding must always fit
       local icon_width = vim.fn.strwidth(icon .. '  ')
       local key_width = vim.fn.strwidth(key_part)
-      local padding_width = 1 -- minimum padding
-      local available_filename_width = width - icon_width - key_width - padding_width
+      local minimum_padding = 2 -- minimum padding between filename and key
+      local reserved_width = icon_width + key_width + minimum_padding
       
-      -- Truncate filename to exact width needed for alignment
+      -- Calculate available width for filename (ensure we always have space for key)
+      local available_filename_width = math.max(3, content_width - reserved_width) -- minimum 3 chars for filename
+      
+      -- Truncate filename to fit in available space
       local display_name = M.truncate_filename_for_alignment(file, available_filename_width)
-      
-      -- Create padding to align keymaps
       local actual_filename_width = vim.fn.strwidth(display_name)
-      local final_padding_width = width - icon_width - actual_filename_width - key_width
-      local padding = string.rep(' ', math.max(1, final_padding_width))
       
-      -- Create line with multiple highlight sections (similar to menu format)
+      -- Calculate padding to fill remaining space
+      local used_width = icon_width + actual_filename_width + key_width
+      local padding_length = math.max(minimum_padding, content_width - used_width)
+      
+      -- Final safety check: if somehow we still exceed content width, reduce padding
+      if used_width + padding_length > content_width then
+        padding_length = math.max(1, content_width - used_width)
+      end
+      
+      local padding = string.rep(' ', padding_length)
+      
+      -- Create line with multiple highlight sections (always preserving the key)
       local line_parts = {
         {'LuxDashRecentIcon', icon .. '  '},
         {'LuxDashRecentFile', display_name},
@@ -128,36 +151,31 @@ function M.truncate_filename_for_alignment(filename, max_width)
     return filename
   end
   
-  -- Always truncate from the beginning to maintain consistent alignment
+  -- Handle very small widths
   if max_width <= 3 then
     return string.rep('.', max_width)
   end
   
-  -- Find the right truncation point to fit exactly in max_width
-  local truncated = filename
-  local current_width = vim.fn.strwidth(truncated)
+  -- For better alignment, prefer showing the filename (basename) over the full path
+  local parts = vim.split(filename, '/')
+  local basename = parts[#parts] or filename
   
-  while current_width > max_width - 3 do
-    -- Remove characters from the beginning until we have space for "..."
-    local char_removed = false
-    for i = 1, #truncated do
-      local char = truncated:sub(i, i)
-      truncated = truncated:sub(i + 1)
-      current_width = vim.fn.strwidth(truncated)
-      char_removed = true
-      break
-    end
-    
-    if not char_removed then
-      break
-    end
-    
-    if current_width <= max_width - 3 then
-      break
-    end
+  -- If just the basename fits with "..." prefix, use that
+  local basename_width = vim.fn.strwidth(basename)
+  if basename_width <= max_width - 3 then
+    return '...' .. basename
   end
   
-  return '...' .. truncated
+  -- Otherwise, truncate the basename itself
+  local target_basename_width = max_width - 3
+  local truncated_basename = basename
+  
+  -- Simple truncation from the end to preserve start of filename
+  while vim.fn.strwidth(truncated_basename) > target_basename_width do
+    truncated_basename = truncated_basename:sub(1, -2)
+  end
+  
+  return '...' .. truncated_basename
 end
 
 -- File extension to icon mapping
@@ -274,28 +292,58 @@ function M.get_file_icon(filepath)
   return M.file_icons[extension] or '󰈙'
 end
 
+-- Store recent files keymaps in a global namespace to avoid conflicts
+local recent_files_keymaps = {}
+
+function M.clear_file_keymaps()
+  local current_buf = vim.api.nvim_get_current_buf()
+  
+  -- Only clear if we're in a luxdash buffer and have stored keymaps
+  if vim.bo[current_buf].filetype == 'luxdash' and recent_files_keymaps[current_buf] then
+    -- Clear only the keymaps we set for recent files
+    for key, _ in pairs(recent_files_keymaps[current_buf]) do
+      pcall(vim.keymap.del, 'n', key, { buffer = current_buf })
+    end
+    recent_files_keymaps[current_buf] = nil
+  end
+end
+
 function M.setup_file_keymap(index, filepath)
   local key = tostring(index)
   
-  vim.keymap.set('n', key, function()
-    -- Close the float manager if open
-    local float = require('luxdash.ui.float_manager')
-    if float.is_open() then
-      float.close()
+  -- Get the current buffer to ensure we're setting the keymap on the correct buffer
+  local current_buf = vim.api.nvim_get_current_buf()
+  
+  -- Only set keymap if we're in a luxdash buffer
+  if vim.bo[current_buf].filetype == 'luxdash' then
+    -- Initialize keymap storage for this buffer if not exists
+    if not recent_files_keymaps[current_buf] then
+      recent_files_keymaps[current_buf] = {}
     end
     
-    -- Open the file in current window
-    local full_path = vim.fn.fnamemodify(filepath, ':p')
-    if vim.fn.filereadable(full_path) == 1 then
-      vim.cmd('edit ' .. vim.fn.fnameescape(full_path))
-    else
-      vim.notify('File not found: ' .. filepath, vim.log.levels.WARN)
-    end
-  end, { 
-    buffer = true, 
-    silent = true,
-    desc = 'Open recent file: ' .. filepath
-  })
+    -- Store the keymap reference to track what we set
+    recent_files_keymaps[current_buf][key] = filepath
+    
+    vim.keymap.set('n', key, function()
+      -- Close the float manager if open
+      local float = require('luxdash.ui.float_manager')
+      if float.is_open() then
+        float.close()
+      end
+      
+      -- Open the file in current window
+      local full_path = vim.fn.fnamemodify(filepath, ':p')
+      if vim.fn.filereadable(full_path) == 1 then
+        vim.cmd('edit ' .. vim.fn.fnameescape(full_path))
+      else
+        vim.notify('File not found: ' .. filepath, vim.log.levels.WARN)
+      end
+    end, { 
+      buffer = current_buf, 
+      silent = true,
+      desc = 'Open recent file: ' .. filepath
+    })
+  end
 end
 
 return M

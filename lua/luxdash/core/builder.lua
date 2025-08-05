@@ -93,7 +93,8 @@ function M.render_bottom_sections(config, layout_data)
         show_underline = true,
         title_alignment = 'center',
         content_alignment = 'center',
-        vertical_alignment = 'top'
+        vertical_alignment = 'top',
+        padding = { left = 2, right = 2 } -- Add consistent padding for all subsections
       }, section_def.config or {})
       
       -- Handle menu-specific config migration
@@ -207,8 +208,63 @@ function M.combine_sections_horizontally(sections_content, height)
         end
         return padded_line
       elseif text_width > target_width then
-        -- Truncate by removing characters from the end
-        return line -- For now, let section renderer handle truncation
+        -- For complex format lines that exceed width, truncate more intelligently
+        local truncated_line = {}
+        local accumulated_width = 0
+        
+        -- Special handling for recent files format: preserve key part at the end
+        local has_key_part = false
+        local key_part = nil
+        local key_width = 0
+        
+        -- Check if last part looks like a key [1], [2], etc.
+        if #line > 0 and type(line[#line]) == 'table' and #line[#line] >= 2 then
+          local last_text = tostring(line[#line][2] or '')
+          if string.match(last_text, '^%[%d+%]$') then
+            has_key_part = true
+            key_part = line[#line]
+            key_width = vim.fn.strwidth(last_text)
+          end
+        end
+        
+        local available_width = target_width
+        if has_key_part then
+          available_width = target_width - key_width
+        end
+        
+        -- Add parts until we run out of space (excluding key part if it exists)
+        local parts_to_process = has_key_part and (#line - 1) or #line
+        for i = 1, parts_to_process do
+          local part = line[i]
+          if type(part) == 'table' and #part >= 2 then
+            local part_text = tostring(part[2] or '')
+            local part_width = vim.fn.strwidth(part_text)
+            
+            if accumulated_width + part_width <= available_width then
+              -- Part fits completely
+              table.insert(truncated_line, part)
+              accumulated_width = accumulated_width + part_width
+            elseif accumulated_width < available_width then
+              -- Part needs to be truncated
+              local chars_to_take = available_width - accumulated_width
+              if chars_to_take > 0 then
+                local truncated_text = vim.fn.strpart(part_text, 0, chars_to_take)
+                table.insert(truncated_line, {part[1], truncated_text})
+                accumulated_width = available_width
+              end
+              break
+            else
+              break
+            end
+          end
+        end
+        
+        -- Add key part if it exists
+        if has_key_part then
+          table.insert(truncated_line, key_part)
+        end
+        
+        return truncated_line
       end
       return line
     elseif type(line) == 'table' and line[2] then
