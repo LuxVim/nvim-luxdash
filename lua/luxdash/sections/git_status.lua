@@ -241,18 +241,17 @@ end
 
 function M.format_remote_line(git_info, width)
   local ab = git_info.ahead_behind
-  local remote = git_info.remote_info.branch or 'origin/' .. git_info.branch
   local icon = icons.get_git_icon('remote')
   local remote_text = ''
   
   if ab.ahead > 0 then
-    remote_text = string.format('%s  Remote:       ⏱ %d commit%s ahead of %s', 
-      icon, ab.ahead, ab.ahead == 1 and '' or 's', remote)
+    remote_text = string.format('%s  Remote:       Ahead %d commit%s', 
+      icon, ab.ahead, ab.ahead == 1 and '' or 's')
   elseif ab.behind > 0 then
-    remote_text = string.format('%s  Remote:       ⏱ %d commit%s behind %s', 
-      icon, ab.behind, ab.behind == 1 and '' or 's', remote)
+    remote_text = string.format('%s  Remote:       Behind %d commit%s', 
+      icon, ab.behind, ab.behind == 1 and '' or 's')
   else
-    remote_text = icon .. '  Remote:       ⏱ up to date with ' .. remote
+    remote_text = icon .. '  Remote:       Up to date'
   end
   
   return {
