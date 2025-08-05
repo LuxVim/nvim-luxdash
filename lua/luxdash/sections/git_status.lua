@@ -22,10 +22,13 @@ function M.render(width, height, config)
   else
     local lines_added = 0
     
-    -- Branch information with status summary
+    -- Priority-based content rendering: always show branch first as it's most important
+    -- Branch information with status summary (Priority 1)
     if git_info.branch and lines_added < available_height then
       local icon = '󰘬'
-      local branch_status = M.format_branch_status(git_info, width - 8)
+      local icon_width = vim.fn.strwidth(icon .. '  ')
+      local available_text_width = width - icon_width
+      local branch_status = M.format_branch_status(git_info, available_text_width)
       local line_parts = {
         {'LuxDashGitBranch', icon .. '  '},
         {'LuxDashGitBranch', branch_status}
@@ -34,10 +37,16 @@ function M.render(width, height, config)
       lines_added = lines_added + 1
     end
     
-    -- Last commit info
+    -- Last commit info (Priority 2)
     if git_info.commit_info and lines_added < available_height then
       local icon = '󰒲'
-      local label = 'Latest: ' .. M.truncate_text(git_info.commit_info, width - 12)
+      local icon_width = vim.fn.strwidth(icon .. '  ')
+      local prefix = 'Latest: '
+      local available_text_width = width - icon_width - vim.fn.strwidth(prefix)
+      -- Be more aggressive with commit message truncation to prevent overflow
+      local max_commit_width = math.min(available_text_width, 25)
+      local truncated_commit = M.truncate_text(git_info.commit_info, max_commit_width)
+      local label = prefix .. truncated_commit
       local line_parts = {
         {'LuxDashGitCommit', icon .. '  '},
         {'LuxDashGitCommit', label}
@@ -46,7 +55,7 @@ function M.render(width, height, config)
       lines_added = lines_added + 1
     end
     
-    -- Working tree status with standard formatting
+    -- Working tree status with standard formatting (Priority 3)
     if git_info.status_counts and lines_added < available_height then
       local counts = git_info.status_counts
       local total_changes = counts.modified + counts.added + counts.deleted + counts.untracked
@@ -105,12 +114,16 @@ function M.render(width, height, config)
       end
     end
     
-    -- Diff statistics
-    if git_info.diff_stats and lines_added < available_height then
+    -- Diff statistics (Priority 4 - skip if space is very limited)
+    if git_info.diff_stats and lines_added < available_height and available_height >= 5 then
       local stats = git_info.diff_stats
       if stats.insertions > 0 or stats.deletions > 0 then
         local icon = '󰊤'
+        local icon_width = vim.fn.strwidth(icon .. '  ')
+        local available_text_width = width - icon_width
         local label = string.format('+%d -%d', stats.insertions, stats.deletions)
+        -- Truncate label if needed (unlikely but safe)
+        label = M.truncate_text(label, available_text_width)
         local line_parts = {
           {'LuxDashGitDiff', icon .. '  '},
           {'LuxDashGitDiff', label}
@@ -120,10 +133,12 @@ function M.render(width, height, config)
       end
     end
     
-    -- Remote sync status with standard formatting
-    if git_info.ahead_behind and lines_added < available_height then
+    -- Remote sync status with standard formatting (Priority 5 - skip if space is very limited)
+    if git_info.ahead_behind and lines_added < available_height and available_height >= 6 then
       local ab = git_info.ahead_behind
       local sync_icon = '󰞃'
+      local icon_width = vim.fn.strwidth(sync_icon .. '  ')
+      local available_text_width = width - icon_width
       local sync_text = ''
       
       if ab.ahead > 0 and ab.behind > 0 then
@@ -136,6 +151,9 @@ function M.render(width, height, config)
         sync_text = 'Remote: up to date'
       end
       
+      -- Truncate sync text if it's too long
+      sync_text = M.truncate_text(sync_text, available_text_width)
+      
       local sync_parts = {
         {'LuxDashGitSync', sync_icon .. '  '},
         {'LuxDashGitSync', sync_text}
@@ -143,6 +161,18 @@ function M.render(width, height, config)
       table.insert(content, sync_parts)
       lines_added = lines_added + 1
     end
+  end
+  
+  -- Final safety check: ensure content never exceeds available height
+  -- This prevents any overflow regardless of configuration errors
+  if #content > available_height then
+    local truncated_content = {}
+    for i = 1, available_height do
+      if content[i] then
+        table.insert(truncated_content, content[i])
+      end
+    end
+    content = truncated_content
   end
   
   return content

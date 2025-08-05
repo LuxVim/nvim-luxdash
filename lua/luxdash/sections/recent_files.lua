@@ -14,8 +14,13 @@ function M.render(width, height, config)
     end
   end
   
-  -- Limit max_files to available height and to 9 (for numerical keymaps)
+  -- Strictly limit max_files to prevent overflow
+  -- Ensure we never exceed the allocated height regardless of configuration
   max_files = math.min(max_files, available_height, 9)
+  -- Additional safety: ensure we have at least 1 line of height to work with
+  if available_height <= 0 then
+    max_files = 0
+  end
   
   local recent_files = M.get_recent_files(max_files)
   
@@ -26,13 +31,21 @@ function M.render(width, height, config)
   else
     for i, file in ipairs(recent_files) do
       local icon = M.get_file_icon(file)
-      local display_name = M.truncate_filename(file, width - 8) -- Account for icon, spaces, and [key]
       local key_part = '[' .. tostring(i) .. ']'
       
-      -- Calculate padding for alignment
-      local text_part = icon .. '  ' .. display_name
-      local padding_width = math.max(1, width - 4 - vim.fn.strwidth(text_part) - vim.fn.strwidth(key_part))
-      local padding = string.rep(' ', padding_width)
+      -- Calculate exact width for filename to maintain alignment
+      local icon_width = vim.fn.strwidth(icon .. '  ')
+      local key_width = vim.fn.strwidth(key_part)
+      local padding_width = 1 -- minimum padding
+      local available_filename_width = width - icon_width - key_width - padding_width
+      
+      -- Truncate filename to exact width needed for alignment
+      local display_name = M.truncate_filename_for_alignment(file, available_filename_width)
+      
+      -- Create padding to align keymaps
+      local actual_filename_width = vim.fn.strwidth(display_name)
+      local final_padding_width = width - icon_width - actual_filename_width - key_width
+      local padding = string.rep(' ', math.max(1, final_padding_width))
       
       -- Create line with multiple highlight sections (similar to menu format)
       local line_parts = {
@@ -47,6 +60,16 @@ function M.render(width, height, config)
       -- Set up numerical keymap to open the file
       M.setup_file_keymap(i, file)
     end
+  end
+  
+  -- Final safety check: ensure content never exceeds available height
+  -- This prevents any overflow regardless of configuration errors
+  if #content > available_height then
+    local truncated_content = {}
+    for i = 1, available_height do
+      table.insert(truncated_content, content[i])
+    end
+    content = truncated_content
   end
   
   return content
@@ -94,6 +117,47 @@ function M.truncate_filename(filename, max_width)
   else
     return filename:sub(1, max_width)
   end
+end
+
+function M.truncate_filename_for_alignment(filename, max_width)
+  if max_width <= 0 then
+    return ""
+  end
+  
+  if vim.fn.strwidth(filename) <= max_width then
+    return filename
+  end
+  
+  -- Always truncate from the beginning to maintain consistent alignment
+  if max_width <= 3 then
+    return string.rep('.', max_width)
+  end
+  
+  -- Find the right truncation point to fit exactly in max_width
+  local truncated = filename
+  local current_width = vim.fn.strwidth(truncated)
+  
+  while current_width > max_width - 3 do
+    -- Remove characters from the beginning until we have space for "..."
+    local char_removed = false
+    for i = 1, #truncated do
+      local char = truncated:sub(i, i)
+      truncated = truncated:sub(i + 1)
+      current_width = vim.fn.strwidth(truncated)
+      char_removed = true
+      break
+    end
+    
+    if not char_removed then
+      break
+    end
+    
+    if current_width <= max_width - 3 then
+      break
+    end
+  end
+  
+  return '...' .. truncated
 end
 
 -- File extension to icon mapping
