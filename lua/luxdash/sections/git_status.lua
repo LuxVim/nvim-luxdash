@@ -1,4 +1,5 @@
 local M = {}
+local icons = require('luxdash.utils.icons')
 
 function M.render(width, height, config)
   local git_info = M.get_git_status()
@@ -230,7 +231,8 @@ end
 
 function M.format_branch_line(git_info, width)
   local branch = git_info.branch or 'unknown'
-  local branch_text = 'Branch:         ' .. branch
+  local icon = icons.get_git_icon('branch')
+  local branch_text = icon .. '  Branch:       ' .. branch
   
   return {
     {'LuxDashGitBranch', M.truncate_text(branch_text, width)}
@@ -240,16 +242,17 @@ end
 function M.format_remote_line(git_info, width)
   local ab = git_info.ahead_behind
   local remote = git_info.remote_info.branch or 'origin/' .. git_info.branch
+  local icon = icons.get_git_icon('remote')
   local remote_text = ''
   
   if ab.ahead > 0 then
-    remote_text = string.format('Remote:         ⏱ %d commit%s ahead of %s', 
-      ab.ahead, ab.ahead == 1 and '' or 's', remote)
+    remote_text = string.format('%s  Remote:       ⏱ %d commit%s ahead of %s', 
+      icon, ab.ahead, ab.ahead == 1 and '' or 's', remote)
   elseif ab.behind > 0 then
-    remote_text = string.format('Remote:         ⏱ %d commit%s behind %s', 
-      ab.behind, ab.behind == 1 and '' or 's', remote)
+    remote_text = string.format('%s  Remote:       ⏱ %d commit%s behind %s', 
+      icon, ab.behind, ab.behind == 1 and '' or 's', remote)
   else
-    remote_text = 'Remote:         ⏱ up to date with ' .. remote
+    remote_text = icon .. '  Remote:       ⏱ up to date with ' .. remote
   end
   
   return {
@@ -278,7 +281,8 @@ function M.format_changes_line(git_info, width)
     table.insert(parts, '-' .. counts.deleted)
   end
   
-  local changes_text = 'File:           ' .. table.concat(parts, ' ')
+  local icon = icons.get_git_icon('changes')
+  local changes_text = icon .. '  File:         ' .. table.concat(parts, ' ')
   
   return {
     {'LuxDashGitSync', M.truncate_text(changes_text, width)}
@@ -291,8 +295,9 @@ function M.format_stats_line(git_info, width)
     return nil 
   end
   
-  local stats_text = string.format('Diff:           +%d -%d', 
-    stats.insertions, stats.deletions)
+  local icon = icons.get_git_icon('diff')
+  local stats_text = string.format('%s  Diff:         +%d -%d', 
+    icon, stats.insertions, stats.deletions)
   
   return {
     {'LuxDashGitDiff', M.truncate_text(stats_text, width)}
@@ -301,7 +306,8 @@ end
 
 function M.format_commit_line(git_info, width)
   local commit_msg = git_info.commit_info or 'No commits'
-  local commit_text = '📝 Last commit: "' .. commit_msg .. '"'
+  local icon = icons.get_git_icon('commit')
+  local commit_text = icon .. '  Last commit: "' .. commit_msg .. '"'
   
   return {
     {'LuxDashGitCommit', M.truncate_text(commit_text, width)}
@@ -310,7 +316,8 @@ end
 
 function M.format_author_line(git_info, width)
   local author = git_info.commit_details.author
-  local author_text = '👤 Author:      ' .. author
+  local icon = icons.get_git_icon('author')
+  local author_text = icon .. '  Author:       ' .. author
   
   return {
     {'LuxDashGitCommit', M.truncate_text(author_text, width)}
@@ -319,7 +326,8 @@ end
 
 function M.format_date_line(git_info, width)
   local date = git_info.commit_details.date
-  local date_text = '📅 Date:        ' .. date  
+  local icon = icons.get_git_icon('date')
+  local date_text = icon .. '  Date:         ' .. date  
   
   return {
     {'LuxDashGitCommit', M.truncate_text(date_text, width)}
