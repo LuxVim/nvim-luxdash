@@ -1,4 +1,5 @@
 local M = {}
+local icons = require('luxdash.utils.icons')
 
 function M.render(width, height, config)
   local git_info = M.get_git_status()
@@ -22,36 +23,69 @@ function M.render(width, height, config)
   else
     local lines_added = 0
     
+    -- Line 1: Branch name only
     if git_info.branch and lines_added < available_height then
-      local branch_line = '󰘬 ' .. M.truncate_text(git_info.branch, width - 8)
-      table.insert(content, {'LuxDashGitBranch', branch_line})
+      local branch_line = M.format_branch_line(git_info, width)
+      table.insert(content, branch_line)
       lines_added = lines_added + 1
     end
     
+    -- Line 2: Remote status
+    if git_info.ahead_behind and git_info.remote_info and lines_added < available_height then
+      local remote_line = M.format_remote_line(git_info, width)
+      table.insert(content, remote_line)
+      lines_added = lines_added + 1
+    end
+    
+    -- Line 3: File changes summary
     if git_info.status_counts and lines_added < available_height then
-      local counts = git_info.status_counts
-      if counts.modified > 0 and lines_added < available_height then
-        table.insert(content, {'LuxDashGitModified', M.truncate_text('󰷈 Modified: ' .. counts.modified, width)})
-        lines_added = lines_added + 1
-      end
-      if counts.added > 0 and lines_added < available_height then
-        table.insert(content, {'LuxDashGitAdded', M.truncate_text('󰐕 Added: ' .. counts.added, width)})
-        lines_added = lines_added + 1
-      end
-      if counts.deleted > 0 and lines_added < available_height then
-        table.insert(content, {'LuxDashGitDeleted', M.truncate_text('󰍵 Deleted: ' .. counts.deleted, width)})
-        lines_added = lines_added + 1
-      end
-      if counts.untracked > 0 and lines_added < available_height then
-        table.insert(content, {'LuxDashGitUntracked', M.truncate_text('󰋖 Untracked: ' .. counts.untracked, width)})
-        lines_added = lines_added + 1
-      end
-      
-      if counts.modified == 0 and counts.added == 0 and counts.deleted == 0 and counts.untracked == 0 and lines_added < available_height then
-        table.insert(content, {'LuxDashGitClean', '󰸞 Clean'})
+      local changes_line = M.format_changes_line(git_info, width)
+      if changes_line then
+        table.insert(content, changes_line)
         lines_added = lines_added + 1
       end
     end
+    
+    -- Line 4: Insertions/deletions stats
+    if git_info.diff_stats and lines_added < available_height then
+      local stats_line = M.format_stats_line(git_info, width)
+      if stats_line then
+        table.insert(content, stats_line)
+        lines_added = lines_added + 1
+      end
+    end
+    
+    -- Line 5: Last commit message
+    if git_info.commit_info and lines_added < available_height then
+      local commit_line = M.format_commit_line(git_info, width)
+      table.insert(content, commit_line)
+      lines_added = lines_added + 1
+    end
+    
+    -- Line 6: Author info
+    if git_info.commit_details and git_info.commit_details.author and lines_added < available_height then
+      local author_line = M.format_author_line(git_info, width)
+      table.insert(content, author_line)
+      lines_added = lines_added + 1
+    end
+    
+    -- Line 7: Date info
+    if git_info.commit_details and git_info.commit_details.date and lines_added < available_height then
+      local date_line = M.format_date_line(git_info, width)
+      table.insert(content, date_line)
+      lines_added = lines_added + 1
+    end
+  end
+  
+  -- Final safety check: ensure content never exceeds available height
+  if #content > available_height then
+    local truncated_content = {}
+    for i = 1, available_height do
+      if content[i] then
+        table.insert(truncated_content, content[i])
+      end
+    end
+    content = truncated_content
   end
   
   return content
@@ -61,7 +95,12 @@ function M.get_git_status()
   local result = {
     is_repo = false,
     branch = nil,
-    status_counts = nil
+    status_counts = nil,
+    commit_info = nil,
+    commit_details = nil,
+    diff_stats = nil,
+    ahead_behind = nil,
+    remote_info = nil
   }
   
   local branch_output = vim.fn.system('git branch --show-current 2>/dev/null')
@@ -75,6 +114,37 @@ function M.get_git_status()
   local status_output = vim.fn.system('git status --porcelain 2>/dev/null')
   if vim.v.shell_error == 0 then
     result.status_counts = M.parse_git_status(status_output)
+  end
+  
+  -- Get last commit info with full details
+  local commit_output = vim.fn.system('git log -1 --pretty=format:"%h %s" 2>/dev/null')
+  if vim.v.shell_error == 0 and commit_output then
+    result.commit_info = vim.trim(commit_output)
+  end
+  
+  -- Get detailed commit information
+  local commit_details_output = vim.fn.system('git log -1 --pretty=format:"%an <%ae>%n%ci" 2>/dev/null')
+  if vim.v.shell_error == 0 and commit_details_output then
+    result.commit_details = M.parse_commit_details(commit_details_output)
+  end
+  
+  -- Get diff stats (insertions/deletions)
+  local diff_output = vim.fn.system('git diff --numstat HEAD 2>/dev/null')
+  if vim.v.shell_error == 0 then
+    result.diff_stats = M.parse_diff_stats(diff_output)
+  end
+  
+  -- Get ahead/behind info with remote branch name
+  local remote_branch_output = vim.fn.system('git rev-parse --abbrev-ref @{upstream} 2>/dev/null')
+  if vim.v.shell_error == 0 and remote_branch_output then
+    result.remote_info = {
+      branch = vim.trim(remote_branch_output)
+    }
+    
+    local ahead_behind_output = vim.fn.system('git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null')
+    if vim.v.shell_error == 0 and ahead_behind_output then
+      result.ahead_behind = M.parse_ahead_behind(ahead_behind_output)
+    end
   end
   
   return result
@@ -103,6 +173,164 @@ function M.parse_git_status(status_output)
   end
   
   return counts
+end
+
+function M.parse_diff_stats(diff_output)
+  local stats = {
+    insertions = 0,
+    deletions = 0
+  }
+  
+  for line in diff_output:gmatch('[^\r\n]+') do
+    local insertions, deletions = line:match('^(%d+)%s+(%d+)')
+    if insertions and deletions then
+      stats.insertions = stats.insertions + tonumber(insertions)
+      stats.deletions = stats.deletions + tonumber(deletions)
+    end
+  end
+  
+  return stats
+end
+
+function M.parse_ahead_behind(ahead_behind_output)
+  local behind, ahead = ahead_behind_output:match('^(%d+)%s+(%d+)')
+  if behind and ahead then
+    return {
+      ahead = tonumber(ahead),
+      behind = tonumber(behind)
+    }
+  end
+  return { ahead = 0, behind = 0 }
+end
+
+function M.parse_commit_details(commit_details_output)
+  local lines = vim.split(commit_details_output, '\n')
+  if #lines >= 2 then
+    local author = lines[1]
+    local date_str = lines[2]
+    
+    -- Parse ISO date and format it
+    local formatted_date = M.format_commit_date(date_str)
+    
+    return {
+      author = author,
+      date = formatted_date
+    }
+  end
+  return nil
+end
+
+function M.format_commit_date(iso_date)
+  -- Parse ISO date format: 2025-08-04 14:23:45 +0000
+  local year, month, day, hour, min = iso_date:match('(%d+)-(%d+)-(%d+) (%d+):(%d+)')
+  if year and month and day and hour and min then
+    return string.format('%s-%s-%s %s:%s', year, month, day, hour, min)
+  end
+  return iso_date -- fallback to original if parsing fails
+end
+
+function M.format_branch_line(git_info, width)
+  local branch = git_info.branch or 'unknown'
+  local icon = icons.get_git_icon('branch')
+  local branch_text = icon .. '  Branch:       ' .. branch
+  
+  return {
+    {'LuxDashGitBranch', M.truncate_text(branch_text, width)}
+  }
+end
+
+function M.format_remote_line(git_info, width)
+  local ab = git_info.ahead_behind
+  local icon = icons.get_git_icon('remote')
+  local remote_text = ''
+  
+  if ab.ahead > 0 then
+    remote_text = string.format('%s  Remote:       Ahead %d commit%s', 
+      icon, ab.ahead, ab.ahead == 1 and '' or 's')
+  elseif ab.behind > 0 then
+    remote_text = string.format('%s  Remote:       Behind %d commit%s', 
+      icon, ab.behind, ab.behind == 1 and '' or 's')
+  else
+    remote_text = icon .. '  Remote:       Up to date'
+  end
+  
+  return {
+    {'LuxDashGitSync', M.truncate_text(remote_text, width)}
+  }
+end
+
+function M.format_changes_line(git_info, width)
+  local counts = git_info.status_counts
+  if not counts then return nil end
+  
+  local total_changes = counts.modified + counts.added + counts.deleted + counts.untracked
+  if total_changes == 0 then return nil end
+  
+  local parts = {}
+  
+  if counts.modified > 0 then
+    table.insert(parts, '~' .. counts.modified)
+  end
+  
+  if counts.added > 0 then
+    table.insert(parts, '+' .. counts.added)
+  end
+  
+  if counts.deleted > 0 then
+    table.insert(parts, '-' .. counts.deleted)
+  end
+  
+  local icon = icons.get_git_icon('changes')
+  local changes_text = icon .. '  File:         ' .. table.concat(parts, ' ')
+  
+  return {
+    {'LuxDashGitSync', M.truncate_text(changes_text, width)}
+  }
+end
+
+function M.format_stats_line(git_info, width)
+  local stats = git_info.diff_stats
+  if not stats or (stats.insertions == 0 and stats.deletions == 0) then 
+    return nil 
+  end
+  
+  local icon = icons.get_git_icon('diff')
+  local stats_text = string.format('%s  Diff:         +%d -%d', 
+    icon, stats.insertions, stats.deletions)
+  
+  return {
+    {'LuxDashGitDiff', M.truncate_text(stats_text, width)}
+  }
+end
+
+function M.format_commit_line(git_info, width)
+  local commit_msg = git_info.commit_info or 'No commits'
+  local icon = icons.get_git_icon('commit')
+  local commit_text = icon .. '  Last commit: "' .. commit_msg .. '"'
+  
+  return {
+    {'LuxDashGitCommit', M.truncate_text(commit_text, width)}
+  }
+end
+
+function M.format_author_line(git_info, width)
+  local author = git_info.commit_details.author
+  local icon = icons.get_git_icon('author')
+  local author_text = icon .. '  Author:       ' .. author
+  
+  return {
+    {'LuxDashGitCommit', M.truncate_text(author_text, width)}
+  }
+end
+
+function M.format_date_line(git_info, width)
+  local date = git_info.commit_details.date
+  local icon = icons.get_git_icon('date')
+  local date_text = icon .. '  Date:         ' .. date  
+  
+  return {
+    {'LuxDashGitCommit', M.truncate_text(date_text, width)}
+  }
 end
 
 function M.truncate_text(text, max_width)
