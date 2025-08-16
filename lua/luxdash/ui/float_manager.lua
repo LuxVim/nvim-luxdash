@@ -63,7 +63,19 @@ function M.create_buffer()
 end
 
 function M.calculate_dimensions()
-  local ui = vim.api.nvim_list_uis()[1]
+  local uis = vim.api.nvim_list_uis()
+  local ui = uis[1]
+  
+  -- Fallback for headless mode or when no UI is available
+  if not ui then
+    return {
+      width = 80,
+      height = 24,
+      row = 2,
+      col = 2
+    }
+  end
+  
   local width, height
   
   if M.config.width <= 1 then

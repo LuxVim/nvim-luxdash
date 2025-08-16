@@ -1,24 +1,44 @@
 local M = {}
 
--- Pre-computed padding strings for common sizes
+-- Enhanced pre-computed padding strings for common sizes
 local padding_cache = {}
-for i = 1, 200 do
+for i = 1, 500 do
   padding_cache[i] = string.rep(' ', i)
 end
 
-function M.get_padding(size)
+-- Width calculation cache with memoization
+local width_cache = {}
+local cache_size = 0
+local MAX_CACHE_SIZE = 1000
+
+function M.get_padding(size, char)
   if size <= 0 then return '' end
-  if size <= 200 then
+  char = char or ' '
+  
+  if char == ' ' and size <= 500 then
     return padding_cache[size]
   end
-  return string.rep(' ', size)
+  return string.rep(char, size)
 end
 
 function M.get_display_width(text)
   if type(text) ~= 'string' then
     text = tostring(text or '')
   end
-  return vim.fn.strdisplaywidth(text)
+  
+  local cached = width_cache[text]
+  if cached then
+    return cached
+  end
+  
+  local width = vim.fn.strdisplaywidth(text)
+  
+  if cache_size < MAX_CACHE_SIZE then
+    width_cache[text] = width
+    cache_size = cache_size + 1
+  end
+  
+  return width
 end
 
 function M.get_byte_width(text)
@@ -28,7 +48,14 @@ function M.get_byte_width(text)
   return vim.fn.strwidth(text)
 end
 
-function M.center_text(text, target_width)
+function M.clear_width_cache()
+  width_cache = {}
+  cache_size = 0
+end
+
+-- Text alignment functions (consolidated from string.lua)
+function M.center_text(text, target_width, char)
+  char = char or ' '
   local text_width = M.get_display_width(text)
   if text_width >= target_width then
     return M.trim_text(text, target_width)
@@ -38,27 +65,65 @@ function M.center_text(text, target_width)
   local left_padding = math.floor(total_padding / 2)
   local right_padding = total_padding - left_padding
   
-  return M.get_padding(left_padding) .. text .. M.get_padding(right_padding)
+  return M.get_padding(left_padding, char) .. text .. M.get_padding(right_padding, char)
 end
 
-function M.left_align_text(text, target_width)
+function M.left_align_text(text, target_width, char)
+  char = char or ' '
   local text_width = M.get_display_width(text)
   if text_width >= target_width then
     return M.trim_text(text, target_width)
   end
   
   local right_padding = target_width - text_width
-  return text .. M.get_padding(right_padding)
+  return text .. M.get_padding(right_padding, char)
 end
 
-function M.right_align_text(text, target_width)
+function M.right_align_text(text, target_width, char)
+  char = char or ' '
   local text_width = M.get_display_width(text)
   if text_width >= target_width then
     return M.trim_text(text, target_width)
   end
   
   local left_padding = target_width - text_width
-  return M.get_padding(left_padding) .. text
+  return M.get_padding(left_padding, char) .. text
+end
+
+-- Padding functions (from string.lua)
+function M.pad_left(str, width, char)
+  return M.right_align_text(tostring(str), width, char)
+end
+
+function M.pad_right(str, width, char)
+  return M.left_align_text(tostring(str), width, char)
+end
+
+function M.pad_center(str, width, char)
+  return M.center_text(tostring(str), width, char)
+end
+
+-- Text truncation with suffix support
+function M.truncate_text(str, width, suffix)
+  suffix = suffix or '...'
+  local str_text = tostring(str)
+  local str_width = M.get_display_width(str_text)
+  if str_width <= width then
+    return str_text
+  end
+  local suffix_width = M.get_display_width(suffix)
+  if width <= suffix_width then
+    return suffix:sub(1, width)
+  end
+  local truncated = vim.fn.strpart(str_text, 0, width - suffix_width)
+  return truncated .. suffix
+end
+
+-- Title case function
+function M.title_case(str)
+  return tostring(str):gsub('%w+', function(w) 
+    return w:sub(1,1):upper()..w:sub(2):lower() 
+  end)
 end
 
 function M.trim_text(text, target_width)

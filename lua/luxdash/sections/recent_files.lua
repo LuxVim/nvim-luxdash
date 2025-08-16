@@ -67,7 +67,7 @@ function M.render(width, height, config)
         padding_length = math.max(1, content_width - used_width)
       end
       
-      local padding = string.rep(' ', padding_length)
+      local padding = require('luxdash.utils.width').get_padding(padding_length)
       
       -- Create line with multiple highlight sections (always preserving the key)
       local line_parts = {

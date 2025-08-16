@@ -116,7 +116,7 @@ function M.render_section(section_module, width, height, config)
           -- Add left padding to the complex line
           local padded_line = {}
           -- Add padding as first part
-          table.insert(padded_line, {'Normal', string.rep(' ', padding.left)})
+          table.insert(padded_line, {'Normal', require('luxdash.utils.width').get_padding(padding.left)})
           -- Add all original parts
           for _, part in ipairs(line) do
             table.insert(padded_line, part)

@@ -8,10 +8,15 @@ local menu_width = 30
 function M.options(modules)
   menu_options = {}
   
+  if not modules or #modules == 0 then
+    return menu_options
+  end
+  
   for _, name in ipairs(modules) do
     local info = M.get_option(name)
     
-    if info.keymap and info.keymap ~= '' and info.command then
+    -- Always create menu item if we have any info
+    if info and info.keymap and info.keymap ~= '' and info.command then
       local label = info.label or name:gsub('^%l', string.upper)
       local icon = info.icon or icons.get_icon(name)
       
@@ -20,7 +25,7 @@ function M.options(modules)
       local key_part = '[' .. info.keymap .. ']'
       local total_width = 24
       local padding_width = math.max(1, total_width - vim.fn.strwidth(text_part) - vim.fn.strwidth(key_part))
-      local padding = string.rep(' ', padding_width)
+      local padding = require('luxdash.utils.width').get_padding(padding_width)
       
       -- Create line with multiple highlight sections
       local line_parts = {
@@ -32,6 +37,7 @@ function M.options(modules)
       
       table.insert(menu_options, line_parts)
       
+      -- Set up keymap
       if type(info.command) == 'function' then
         vim.keymap.set('n', info.keymap, info.command, { 
           buffer = true, 
@@ -39,7 +45,7 @@ function M.options(modules)
         })
       else
         vim.keymap.set('n', info.keymap, function()
-          vim.cmd(info.command)
+          vim.cmd(tostring(info.command))
         end, { 
           buffer = true, 
           silent = true 
@@ -63,19 +69,33 @@ function M.get_option(type)
     
     local ok_func, func_module = pcall(require, func_name)
     if ok_func and func_module and func_module.command then
-      return func_module.command()
+      local cmd_result = func_module.command()
+      -- Ensure we have valid keymap and command
+      if cmd_result and cmd_result.keymap and cmd_result.command then
+        return cmd_result
+      end
     end
     
-    return {}
+    -- Return fallback with valid structure
+    return {
+      keymap = type:sub(1,1):lower(),
+      label = type:gsub('^%l', string.upper),
+      command = function() 
+        print('Menu action not implemented: ' .. type)
+      end
+    }
   end)
   
-  if ok then
+  if ok and result and result.keymap and result.command then
     return result
   else
+    -- Ensure fallback always has valid structure
     return {
-      keymap = '',
+      keymap = type:sub(1,1):lower(),
       label = type:gsub('^%l', string.upper),
-      command = function() end
+      command = function() 
+        print('Menu action failed to load: ' .. type)
+      end
     }
   end
 end

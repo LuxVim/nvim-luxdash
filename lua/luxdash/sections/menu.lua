@@ -14,6 +14,11 @@ function M.render(width, height, config)
   
   local content = {}
   
+  -- Return empty if no menu items
+  if not menu_items or #menu_items == 0 then
+    return content
+  end
+  
   -- Limit menu items to available height to prevent overflow
   local max_items = math.min(#menu_items, available_height)
   

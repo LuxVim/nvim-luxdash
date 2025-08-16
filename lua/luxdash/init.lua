@@ -26,78 +26,13 @@ M.config = {
     }
   },
   
-  -- New modular section configuration
+  -- Simplified section configuration
   sections = {
-    -- Main section (logo area)
-    main = {
-      type = 'logo',
-      config = {
-        title = nil,
-        show_title = false,
-        show_underline = false,
-        alignment = {
-          horizontal = 'center',
-          vertical = 'center'
-        }
-      }
-    },
-    -- Dynamic bottom sections
+    main = { type = 'logo', show_title = false, show_underline = false },
     bottom = {
-      {
-        id = 'actions',
-        type = 'menu',
-        title = '⚡ Actions',
-        config = {
-          show_title = true,
-          show_underline = true,
-          underline_style = 'line', -- Options: 'line', 'double', 'dots', 'dashes', 'none'
-          alignment = {
-            horizontal = 'center',
-            vertical = 'top',
-            title_horizontal = 'center',
-            content_horizontal = 'center'
-          },
-          padding = { left = 2, right = 2 },
-          -- Menu-specific config
-          menu_items = { 'newfile', 'backtrack', 'fzf', 'closelux' }
-        }
-      },
-      {
-        id = 'recent_files',
-        type = 'recent_files',
-        title = '📁 Recent Files',
-        config = {
-          show_title = true,
-          show_underline = true,
-          underline_style = 'line',
-          alignment = {
-            horizontal = 'center',
-            vertical = 'top',
-            title_horizontal = 'center',
-            content_horizontal = 'left'
-          },
-          padding = { left = 2, right = 2 },
-          -- Recent files specific config
-          max_files = 8
-        }
-      },
-      {
-        id = 'git_status',
-        type = 'git_status',
-        title = '🌿 Git Status',
-        config = {
-          show_title = true,
-          show_underline = true,
-          underline_style = 'line',
-          alignment = {
-            horizontal = 'center',
-            vertical = 'top',
-            title_horizontal = 'center',
-            content_horizontal = 'left'
-          },
-          padding = { left = 2, right = 2 }
-        }
-      }
+      { id = 'actions', type = 'menu', title = '⚡ Actions', menu_items = { 'newfile', 'backtrack', 'fzf', 'closelux' } },
+      { id = 'recent_files', type = 'recent_files', title = '📁 Recent Files', max_files = 8, content_align = 'left' },
+      { id = 'git_status', type = 'git_status', title = '🌿 Git Status', content_align = 'left' }
     }
   },
   
@@ -136,16 +71,21 @@ function M.setup(opts)
   local colors = require('luxdash.rendering.colors')
   colors.clear_color_cache()
   
+  -- Clear highlight cache
+  local highlight_pool = require('luxdash.core.highlight_pool')
+  highlight_pool.clear_highlight_cache()
+  
+  -- Clear width cache
+  local width_utils = require('luxdash.utils.width')
+  width_utils.clear_width_cache()
+  
   -- Setup highlights
   local highlights = require('luxdash.rendering.highlights')
   highlights.setup()
   
-  local float_manager = require('luxdash.ui.float_manager')
-  float_manager.setup(M.config.float or {})
-  
   vim.api.nvim_create_user_command('LuxDash', function()
-    float_manager.toggle()
-  end, { desc = 'Toggle LuxDash floating window' })
+    require('luxdash.core').open()
+  end, { desc = 'Open LuxDash' })
   
   -- Setup autocmds
   local autocmds = require('luxdash.events.autocmds')
@@ -158,8 +98,7 @@ function M.open()
 end
 
 function M.toggle()
-    local float_manager = require('luxdash.ui.float_manager')
-    float_manager.toggle()
+    require('luxdash.core').open()
 end
 
 return M

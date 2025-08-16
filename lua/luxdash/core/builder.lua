@@ -30,11 +30,10 @@ function M.render_main_section(config, layout_data)
   local section_module = layout.load_section(main_section_config.type)
   
   if not section_module then
-    -- Fallback to logo section
     section_module = layout.load_section('logo')
   end
   
-  -- Prepare section config
+  -- Prepare section config with flattened structure
   local render_config = vim.tbl_deep_extend('force', {
     logo = config.logo,
     logo_color = config.logo_color,
@@ -44,7 +43,7 @@ function M.render_main_section(config, layout_data)
     vertical_alignment = 'center',
     show_title = false,
     show_underline = false
-  }, main_section_config.config or {})
+  }, main_section_config)
   
   local main_content = section_renderer.render_section(
     section_module, 
@@ -68,74 +67,83 @@ function M.render_main_section(config, layout_data)
   end
   
   for i = 1, lines_to_add do
-    local main_line = main_content[i] or string.rep(' ', layout_data.main.width)
+    local main_line = main_content[i] or require('luxdash.utils.width').get_padding(layout_data.main.width)
     dashboard_data.add_line(main_line)
   end
+end
+
+-- Extract section creation logic
+function M.create_section_content(section_def, section_layout, index, total_sections)
+  local section_module = layout.load_section(section_def.type)
+  
+  if not section_module then
+    return M.create_empty_section(section_layout)
+  end
+  
+  local render_config = M.prepare_section_config(section_def)
+  local section_content = section_renderer.render_section(
+    section_module,
+    section_layout.width,
+    section_layout.height,
+    render_config
+  )
+  
+  return {
+    content = section_content,
+    width = section_layout.width
+  }
+end
+
+function M.prepare_section_config(section_def)
+  local render_config = {
+    section_type = 'sub',
+    section_id = section_def.id,
+    title = section_def.title,
+    show_title = true,
+    show_underline = true,
+    title_alignment = 'center',
+    content_alignment = section_def.content_align or 'center',
+    vertical_alignment = 'top',
+    padding = { left = 2, right = 2 },
+    -- Copy important properties from section_def (check both flat and nested)
+    menu_items = section_def.menu_items or (section_def.config and section_def.config.menu_items),
+    max_files = section_def.max_files or (section_def.config and section_def.config.max_files)
+  }
+  
+  -- Handle menu-specific config
+  if section_def.type == 'menu' and render_config.menu_items then
+    local menu = require('luxdash.utils.menu')
+    if type(render_config.menu_items) == 'table' and #render_config.menu_items > 0 then
+      if type(render_config.menu_items[1]) == 'string' then
+        local processed_items = menu.options(render_config.menu_items)
+        render_config.menu_items = processed_items
+      end
+    end
+  end
+  
+  return render_config
+end
+
+function M.create_empty_section(section_layout)
+  local empty_content = {}
+  for j = 1, section_layout.height do
+    table.insert(empty_content, require('luxdash.utils.width').get_padding(section_layout.width))
+  end
+  return {
+    content = empty_content,
+    width = section_layout.width
+  }
 end
 
 function M.render_bottom_sections(config, layout_data)
   local bottom_sections = config.sections.bottom or {}
   local sections_content = {}
   
-  -- Render each bottom section
+  -- Render each bottom section using extracted functions
   for i, section_def in ipairs(bottom_sections) do
-    local section_module = layout.load_section(section_def.type)
-    
-    if section_module then
-      -- Calculate section width and get layout data
-      local section_layout = M.get_section_layout(i, #bottom_sections, layout_data)
-      
-      -- Prepare section config
-      local render_config = vim.tbl_deep_extend('force', {
-        section_type = 'sub',
-        section_id = section_def.id, -- Pass section ID for custom highlights
-        title = section_def.title,
-        show_title = true,
-        show_underline = true,
-        title_alignment = 'center',
-        content_alignment = 'center',
-        vertical_alignment = 'top',
-        padding = { left = 2, right = 2 } -- Add consistent padding for all subsections
-      }, section_def.config or {})
-      
-      -- Handle menu-specific config migration
-      if section_def.type == 'menu' then
-        local menu = require('luxdash.utils.menu')
-        if render_config.menu_items and type(render_config.menu_items[1]) == 'string' then
-          -- Convert string array to processed menu items
-          render_config.menu_items = menu.options(render_config.menu_items)
-        end
-      end
-      
-      -- Apply alignment from config
-      local alignment = render_config.alignment or {}
-      render_config.title_alignment = alignment.title_horizontal or render_config.title_alignment
-      render_config.content_alignment = alignment.content_horizontal or render_config.content_alignment
-      render_config.vertical_alignment = alignment.vertical or render_config.vertical_alignment
-      
-      local section_content = section_renderer.render_section(
-        section_module,
-        section_layout.width,
-        section_layout.height,
-        render_config
-      )
-      
-      table.insert(sections_content, {
-        content = section_content,
-        width = section_layout.width
-      })
-    else
-      -- Empty section fallback
-      local section_layout = M.get_section_layout(i, #bottom_sections, layout_data)
-      local empty_content = {}
-      for j = 1, section_layout.height do
-        table.insert(empty_content, string.rep(' ', section_layout.width))
-      end
-      table.insert(sections_content, {
-        content = empty_content,
-        width = section_layout.width
-      })
-    end
+    local section_layout = M.get_section_layout(i, #bottom_sections, layout_data)
+    local section_content = M.create_section_content(section_def, section_layout, i, #bottom_sections)
+    table.insert(sections_content, section_content)
   end
   
   -- Combine sections horizontally
@@ -181,121 +189,101 @@ function M.get_section_layout(section_index, total_sections, layout_data)
   end
 end
 
-function M.combine_sections_horizontally(sections_content, height)
-  -- Helper function to ensure exact width
-  local function ensure_exact_width(line, target_width)
-    -- For complex format lines, calculate width without double-processing
-    if type(line) == 'table' and #line > 0 and type(line[1]) == 'table' then
-      -- Complex format: {{highlight, text}, {highlight, text}, ...}
-      -- Calculate text width directly without using combine_line_parts to avoid double processing
-      local text_width = 0
-      for _, part in ipairs(line) do
-        if type(part) == 'table' and #part >= 2 then
-          local part_text = tostring(part[2] or '')
-          text_width = text_width + vim.fn.strwidth(part_text)
-        end
+-- Extract width processing into separate function
+local function ensure_exact_width(line, target_width)
+  local width_utils = require('luxdash.utils.width')
+  
+  if type(line) == 'table' and #line > 0 and type(line[1]) == 'table' then
+    -- Complex format: {{highlight, text}, {highlight, text}, ...}
+    local text_width = 0
+    for _, part in ipairs(line) do
+      if type(part) == 'table' and #part >= 2 then
+        text_width = text_width + vim.fn.strwidth(tostring(part[2] or ''))
       end
-      
-      if text_width < target_width then
-        -- Add padding by appending spaces to the combined text
-        local padding = string.rep(' ', target_width - text_width)
-        -- Return the original complex format with padding appended
-        local padded_line = {}
-        for _, part in ipairs(line) do
-          table.insert(padded_line, part)
-        end
-        if target_width > text_width then
-          table.insert(padded_line, {'Normal', padding})
-        end
-        return padded_line
-      elseif text_width > target_width then
-        -- For complex format lines that exceed width, truncate more intelligently
-        local truncated_line = {}
-        local accumulated_width = 0
-        
-        -- Special handling for recent files format: preserve key part at the end
-        local has_key_part = false
-        local key_part = nil
-        local key_width = 0
-        
-        -- Check if last part looks like a key [1], [2], etc.
-        if #line > 0 and type(line[#line]) == 'table' and #line[#line] >= 2 then
-          local last_text = tostring(line[#line][2] or '')
-          if string.match(last_text, '^%[%d+%]$') then
-            has_key_part = true
-            key_part = line[#line]
-            key_width = vim.fn.strwidth(last_text)
-          end
-        end
-        
-        local available_width = target_width
-        if has_key_part then
-          available_width = target_width - key_width
-        end
-        
-        -- Add parts until we run out of space (excluding key part if it exists)
-        local parts_to_process = has_key_part and (#line - 1) or #line
-        for i = 1, parts_to_process do
-          local part = line[i]
-          if type(part) == 'table' and #part >= 2 then
-            local part_text = tostring(part[2] or '')
-            local part_width = vim.fn.strwidth(part_text)
-            
-            if accumulated_width + part_width <= available_width then
-              -- Part fits completely
-              table.insert(truncated_line, part)
-              accumulated_width = accumulated_width + part_width
-            elseif accumulated_width < available_width then
-              -- Part needs to be truncated
-              local chars_to_take = available_width - accumulated_width
-              if chars_to_take > 0 then
-                local truncated_text = vim.fn.strpart(part_text, 0, chars_to_take)
-                table.insert(truncated_line, {part[1], truncated_text})
-                accumulated_width = available_width
-              end
-              break
-            else
-              break
-            end
-          end
-        end
-        
-        -- Add key part if it exists
-        if has_key_part then
-          table.insert(truncated_line, key_part)
-        end
-        
-        return truncated_line
-      end
-      return line
-    elseif type(line) == 'table' and line[2] then
-      -- Simple format: {highlight, text}
-      local text = tostring(line[2])
-      local text_width = vim.fn.strwidth(text)
-      if text_width < target_width then
-        return {line[1], text .. string.rep(' ', target_width - text_width)}
-      elseif text_width > target_width then
-        return {line[1], vim.fn.strpart(text, 0, target_width)}
-      end
-      return line
-    else
-      -- Plain text
-      local text = tostring(line)
-      local text_width = vim.fn.strwidth(text)
-      if text_width < target_width then
-        return text .. string.rep(' ', target_width - text_width)
-      elseif text_width > target_width then
-        return vim.fn.strpart(text, 0, target_width)
-      end
-      return text
+    end
+    
+    if text_width < target_width then
+      local padded_line = vim.list_extend({}, line)
+      table.insert(padded_line, {'Normal', width_utils.get_padding(target_width - text_width)})
+      return padded_line
+    elseif text_width > target_width then
+      return M.truncate_complex_line(line, target_width)
+    end
+    return line
+  elseif type(line) == 'table' and line[2] then
+    -- Simple format: {highlight, text}
+    local text = tostring(line[2])
+    local text_width = vim.fn.strwidth(text)
+    if text_width < target_width then
+      return {line[1], text .. width_utils.get_padding(target_width - text_width)}
+    elseif text_width > target_width then
+      return {line[1], vim.fn.strpart(text, 0, target_width)}
+    end
+    return line
+  else
+    -- Plain text
+    return width_utils.ensure_exact_width(tostring(line), target_width)
+  end
+end
+
+-- Extract complex line truncation logic
+function M.truncate_complex_line(line, target_width)
+  local truncated_line = {}
+  local accumulated_width = 0
+  
+  -- Handle recent files format with preserved key
+  local has_key_part = false
+  local key_part = nil
+  local key_width = 0
+  
+  if #line > 0 and type(line[#line]) == 'table' and #line[#line] >= 2 then
+    local last_text = tostring(line[#line][2] or '')
+    if string.match(last_text, '^%[%d+%]$') then
+      has_key_part = true
+      key_part = line[#line]
+      key_width = vim.fn.strwidth(last_text)
     end
   end
+  
+  local available_width = has_key_part and (target_width - key_width) or target_width
+  local parts_to_process = has_key_part and (#line - 1) or #line
+  
+  for i = 1, parts_to_process do
+    local part = line[i]
+    if type(part) == 'table' and #part >= 2 then
+      local part_text = tostring(part[2] or '')
+      local part_width = vim.fn.strwidth(part_text)
+      
+      if accumulated_width + part_width <= available_width then
+        table.insert(truncated_line, part)
+        accumulated_width = accumulated_width + part_width
+      elseif accumulated_width < available_width then
+        local chars_to_take = available_width - accumulated_width
+        if chars_to_take > 0 then
+          local truncated_text = vim.fn.strpart(part_text, 0, chars_to_take)
+          table.insert(truncated_line, {part[1], truncated_text})
+        end
+        break
+      else
+        break
+      end
+    end
+  end
+  
+  if has_key_part then
+    table.insert(truncated_line, key_part)
+  end
+  
+  return truncated_line
+end
+
+function M.combine_sections_horizontally(sections_content, height)
 
   for i = 1, height do
     local line_parts = {}
     
     for j, section in ipairs(sections_content) do
-      local section_line = section.content[i] or string.rep(' ', section.width)
+      local section_line = section.content[i] or require('luxdash.utils.width').get_padding(section.width)
       section_line = ensure_exact_width(section_line, section.width)
       table.insert(line_parts, section_line)
       
@@ -326,7 +314,7 @@ function M.combine_sections_horizontally(sections_content, height)
           table.insert(line_parts, {'LuxDashSubSeparator', '│'})
         else
           -- Add spacing on regular content rows
-          table.insert(line_parts, string.rep(' ', 2))
+          table.insert(line_parts, require('luxdash.utils.width').get_padding(2))
         end
       end
     end

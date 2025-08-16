@@ -118,43 +118,9 @@ function M.print()
 end
 
 function M.apply_highlights(lines, all_highlights)
-  -- Clear all existing highlights first
-  vim.api.nvim_buf_clear_namespace(0, -1, 0, -1)
-  
-  -- Create separate namespaces for different highlight types
-  local logo_ns = vim.api.nvim_create_namespace('luxdash_logo')
-  local menu_ns = vim.api.nvim_create_namespace('luxdash_menu')
-  local other_ns = vim.api.nvim_create_namespace('luxdash_other')
-  
-  for _, hl in ipairs(all_highlights) do
-    local line_idx = hl.line_num - 1
-    if line_idx >= 0 and line_idx < #lines then
-      local line_text = lines[line_idx + 1] or ''
-      local line_length = vim.fn.strwidth(line_text)
-      -- Don't constrain logo highlights to line length - they should span their intended width
-      local start_col, end_col
-      if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
-        start_col = math.max(0, hl.start_col)
-        end_col = math.max(start_col, hl.end_col)
-      else
-        start_col = math.max(0, math.min(hl.start_col, line_length))
-        end_col = math.max(start_col, math.min(hl.end_col, line_length))
-      end
-      
-      if start_col < end_col then
-        local namespace
-        if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
-          namespace = logo_ns
-        elseif hl.hl_group and hl.hl_group:match('^LuxDashMenu') then
-          namespace = menu_ns
-        else
-          namespace = other_ns
-        end
-        
-        vim.api.nvim_buf_add_highlight(0, namespace, hl.hl_group, line_idx, start_col, end_col)
-      end
-    end
-  end
+  -- Use consolidated highlight pool for all highlight management
+  highlight_pool.clear_all_namespaces()
+  highlight_pool.batch_apply_highlights(all_highlights, lines)
 end
 
 return M
