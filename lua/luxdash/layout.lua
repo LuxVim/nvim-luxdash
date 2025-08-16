@@ -22,12 +22,15 @@ function M.calculate_layout(winheight, winwidth, layout_config)
   -- Main section now encompasses the full width for the logo
   local main_width = winwidth
   
-  -- Calculate bottom section widths
+  -- Calculate bottom section widths with better remainder distribution
   local available_width = winwidth - section_spacing
-  local bottom_section_width = math.floor(available_width / 3)
-  local bottom_left_width = bottom_section_width
-  local bottom_center_width = bottom_section_width
-  local bottom_right_width = available_width - bottom_left_width - bottom_center_width
+  local base_width = math.floor(available_width / 3)
+  local remainder = available_width % 3
+  
+  -- Distribute remainder pixels fairly across sections
+  local bottom_left_width = base_width + (remainder > 0 and 1 or 0)
+  local bottom_center_width = base_width + (remainder > 1 and 1 or 0)
+  local bottom_right_width = base_width
   
   local layout_data = {
     main = {

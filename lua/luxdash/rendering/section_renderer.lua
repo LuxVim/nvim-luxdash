@@ -1,6 +1,33 @@
 local M = {}
 local alignment = require('luxdash.rendering.alignment')
 
+-- Utility function to calculate available height for section content
+function M.calculate_available_height(height, config)
+  local available_height = height
+  if config.show_title ~= false then
+    available_height = available_height - 1  -- title
+    if config.show_underline ~= false then
+      available_height = available_height - 1  -- underline
+    end
+    if config.title_spacing ~= false then
+      available_height = available_height - 1  -- spacing
+    end
+  end
+  return math.max(0, available_height)
+end
+
+-- Utility function to get underline character based on style
+function M.get_underline_char(style)
+  local underline_styles = {
+    line = '─',
+    double = '═', 
+    dots = '·',
+    dashes = '-',
+    none = ''
+  }
+  return underline_styles[style] or underline_styles.line
+end
+
 -- Standardized section renderer that handles title, underline, and content with proper alignment
 function M.render_section(section_module, width, height, config)
   config = config or {}
@@ -21,12 +48,27 @@ function M.render_section(section_module, width, height, config)
   local title_hl = section_type == 'main' and 'LuxDashMainTitle' or 'LuxDashSubTitle'
   local separator_hl = section_type == 'main' and 'LuxDashMainSeparator' or 'LuxDashSubSeparator'
   
-  -- Allow custom highlight groups
+  -- Allow custom highlight groups with section-specific naming
   if config.title_highlight then
     title_hl = config.title_highlight
+  elseif config.section_id then
+    -- Try section-specific highlight group first
+    local section_title_hl = 'LuxDash' .. config.section_id:gsub('^%l', string.upper) .. 'Title'
+    local highlights = require('luxdash.rendering.highlights')
+    if highlights.groups[section_title_hl] then
+      title_hl = section_title_hl
+    end
   end
+  
   if config.separator_highlight then
     separator_hl = config.separator_highlight
+  elseif config.section_id then
+    -- Try section-specific separator highlight
+    local section_sep_hl = 'LuxDash' .. config.section_id:gsub('^%l', string.upper) .. 'Separator'
+    local highlights = require('luxdash.rendering.highlights')
+    if highlights.groups[section_sep_hl] then
+      separator_hl = section_sep_hl
+    end
   end
   
   -- Get content from the section module
@@ -46,7 +88,8 @@ function M.render_section(section_module, width, height, config)
     -- Add underline if configured
     if config.show_underline ~= false then
       local underline_width = width
-      local underline = string.rep('─', underline_width)
+      local underline_char = M.get_underline_char(config.underline_style)
+      local underline = string.rep(underline_char, underline_width)
       
       table.insert(content, {separator_hl, underline})
     end

@@ -88,6 +88,7 @@ function M.render_bottom_sections(config, layout_data)
       -- Prepare section config
       local render_config = vim.tbl_deep_extend('force', {
         section_type = 'sub',
+        section_id = section_def.id, -- Pass section ID for custom highlights
         title = section_def.title,
         show_title = true,
         show_underline = true,

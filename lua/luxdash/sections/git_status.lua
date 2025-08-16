@@ -1,25 +1,24 @@
 local M = {}
 local icons = require('luxdash.utils.icons')
+local truncation = require('luxdash.utils.truncation')
+
+-- Git status cache to improve performance
+local git_cache = {}
+local cache_timeout = 5 -- seconds
 
 function M.render(width, height, config)
   local git_info = M.get_git_status()
+  local section_renderer = require('luxdash.rendering.section_renderer')
   
-  -- Calculate available height for content (subtract title and underline if present)
-  local available_height = height
-  if config.show_title ~= false then
-    available_height = available_height - 1  -- title
-    if config.show_underline ~= false then
-      available_height = available_height - 1  -- underline
-    end
-    if config.title_spacing ~= false then
-      available_height = available_height - 1  -- spacing
-    end
-  end
+  -- Use standardized height calculation
+  local available_height = section_renderer.calculate_available_height(height, config)
   
   local content = {}
   
   if not git_info.is_repo then
-    table.insert(content, {'LuxDashComment', 'Not a git repo'})
+    table.insert(content, {'LuxDashComment', '📁 Not a git repository'})
+  elseif git_info.error then
+    table.insert(content, {'LuxDashComment', '⚠️  Git unavailable'})
   else
     local lines_added = 0
     
@@ -92,6 +91,17 @@ function M.render(width, height, config)
 end
 
 function M.get_git_status()
+  local repo_path = vim.fn.getcwd()
+  local cache_key = repo_path
+  local current_time = os.time()
+  
+  -- Check cache first
+  if git_cache[cache_key] and 
+     git_cache[cache_key].timestamp and
+     (current_time - git_cache[cache_key].timestamp) < cache_timeout then
+    return git_cache[cache_key].data
+  end
+  
   local result = {
     is_repo = false,
     branch = nil,
@@ -100,8 +110,16 @@ function M.get_git_status()
     commit_details = nil,
     diff_stats = nil,
     ahead_behind = nil,
-    remote_info = nil
+    remote_info = nil,
+    error = nil
   }
+  
+  -- Check if git is available
+  local git_available = vim.fn.executable('git') == 1
+  if not git_available then
+    result.error = 'git_not_found'
+    return result
+  end
   
   local branch_output = vim.fn.system('git branch --show-current 2>/dev/null')
   if vim.v.shell_error == 0 and branch_output then
@@ -147,7 +165,18 @@ function M.get_git_status()
     end
   end
   
+  -- Cache the result
+  git_cache[cache_key] = {
+    data = result,
+    timestamp = current_time
+  }
+  
   return result
+end
+
+-- Function to clear git cache (useful for manual refresh)
+function M.clear_git_cache()
+  git_cache = {}
 end
 
 function M.parse_git_status(status_output)
@@ -232,10 +261,15 @@ end
 function M.format_branch_line(git_info, width)
   local branch = git_info.branch or 'unknown'
   local icon = icons.get_git_icon('branch')
-  local branch_text = icon .. '  Branch:       ' .. branch
+  local prefix = icon .. '  Branch:       '
+  local prefix_width = vim.fn.strwidth(prefix)
+  local available_width = width - prefix_width
+  
+  local truncated_branch = truncation.truncate_branch_name(branch, available_width)
+  local branch_text = prefix .. truncated_branch
   
   return {
-    {'LuxDashGitBranch', M.truncate_text(branch_text, width)}
+    {'LuxDashGitBranch', branch_text}
   }
 end
 
@@ -306,10 +340,17 @@ end
 function M.format_commit_line(git_info, width)
   local commit_msg = git_info.commit_info or 'No commits'
   local icon = icons.get_git_icon('commit')
-  local commit_text = icon .. '  Last commit: "' .. commit_msg .. '"'
+  local prefix = icon .. '  Last commit: "'
+  local suffix = '"'
+  local prefix_width = vim.fn.strwidth(prefix)
+  local suffix_width = vim.fn.strwidth(suffix)
+  local available_width = width - prefix_width - suffix_width
+  
+  local truncated_commit = truncation.truncate_commit_message(commit_msg, available_width)
+  local commit_text = prefix .. truncated_commit .. suffix
   
   return {
-    {'LuxDashGitCommit', M.truncate_text(commit_text, width)}
+    {'LuxDashGitCommit', commit_text}
   }
 end
 

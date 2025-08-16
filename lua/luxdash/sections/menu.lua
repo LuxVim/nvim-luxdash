@@ -2,18 +2,10 @@ local M = {}
 
 function M.render(width, height, config)
   local menu_items = config.menu_items or {}
+  local section_renderer = require('luxdash.rendering.section_renderer')
   
-  -- Calculate available height for content (subtract title and underline if present)
-  local available_height = height
-  if config.show_title ~= false then
-    available_height = available_height - 1  -- title
-    if config.show_underline ~= false then
-      available_height = available_height - 1  -- underline
-    end
-    if config.title_spacing ~= false then
-      available_height = available_height - 1  -- spacing
-    end
-  end
+  -- Use standardized height calculation
+  local available_height = section_renderer.calculate_available_height(height, config)
   
   -- Ensure we have at least 1 line of height to work with
   if available_height <= 0 then

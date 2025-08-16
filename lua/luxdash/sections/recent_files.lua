@@ -1,10 +1,12 @@
 local M = {}
+local truncation = require('luxdash.utils.truncation')
 
 function M.render(width, height, config)
   -- Clear any existing keymaps for this section first
   M.clear_file_keymaps()
   
   local max_files = config.max_files or 10
+  local section_renderer = require('luxdash.rendering.section_renderer')
   
   -- Account for section padding that will be applied by section renderer
   local content_width = width
@@ -14,17 +16,8 @@ function M.render(width, height, config)
     content_width = width - left_padding - right_padding
   end
   
-  -- Calculate available height for content (subtract title and underline if present)
-  local available_height = height
-  if config.show_title ~= false then
-    available_height = available_height - 1  -- title
-    if config.show_underline ~= false then
-      available_height = available_height - 1  -- underline
-    end
-    if config.title_spacing ~= false then
-      available_height = available_height - 1  -- spacing
-    end
-  end
+  -- Use standardized height calculation
+  local available_height = section_renderer.calculate_available_height(height, config)
   
   -- Strictly limit max_files to prevent overflow
   -- Ensure we never exceed the allocated height regardless of configuration
@@ -39,7 +32,13 @@ function M.render(width, height, config)
   local content = {}
   
   if #recent_files == 0 then
-    table.insert(content, {'LuxDashComment', 'No recent files'})
+    -- Better messaging based on why no files are available
+    local oldfiles = vim.v.oldfiles or {}
+    if #oldfiles == 0 then
+      table.insert(content, {'LuxDashComment', '📝 No files opened yet'})
+    else
+      table.insert(content, {'LuxDashComment', '📂 No recent files in this directory'})
+    end
   else
     for i, file in ipairs(recent_files) do
       local icon = M.get_file_icon(file)
@@ -55,8 +54,8 @@ function M.render(width, height, config)
       -- Calculate available width for filename (ensure we always have space for key)
       local available_filename_width = math.max(3, content_width - reserved_width) -- minimum 3 chars for filename
       
-      -- Truncate filename to fit in available space
-      local display_name = M.truncate_filename_for_alignment(file, available_filename_width)
+      -- Truncate filename to fit in available space using smart path strategy
+      local display_name = truncation.truncate_text(file, available_filename_width, 'smart_path')
       local actual_filename_width = vim.fn.strwidth(display_name)
       
       -- Calculate padding to fill remaining space
@@ -331,12 +330,17 @@ function M.setup_file_keymap(index, filepath)
         float.close()
       end
       
-      -- Open the file in current window
+      -- Open the file in current window with better error handling
       local full_path = vim.fn.fnamemodify(filepath, ':p')
       if vim.fn.filereadable(full_path) == 1 then
-        vim.cmd('edit ' .. vim.fn.fnameescape(full_path))
+        local ok, err = pcall(function()
+          vim.cmd('edit ' .. vim.fn.fnameescape(full_path))
+        end)
+        if not ok then
+          vim.notify('Failed to open file: ' .. err, vim.log.levels.ERROR)
+        end
       else
-        vim.notify('File not found: ' .. filepath, vim.log.levels.WARN)
+        vim.notify('📁 File no longer exists: ' .. filepath, vim.log.levels.WARN)
       end
     end, { 
       buffer = current_buf, 
