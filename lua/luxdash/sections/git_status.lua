@@ -1,6 +1,14 @@
+--- Git status section for nvim-luxdash
+--- Displays repository information including branch, remote status, file changes,
+--- diff statistics, and last commit details
 local M = {}
 local icons = require('luxdash.utils.icons')
 
+--- Render the git status section content
+--- @param width number Available width for rendering
+--- @param height number Available height for rendering
+--- @param config table Section configuration
+--- @return table Array of formatted lines with highlight groups
 function M.render(width, height, config)
   local git_info = M.get_git_status()
   
@@ -91,6 +99,9 @@ function M.render(width, height, config)
   return content
 end
 
+--- Get comprehensive git repository status
+--- Executes multiple git commands to gather branch, status, commits, and diff information
+--- @return table git_info Table containing all git information (is_repo, branch, status_counts, etc.)
 function M.get_git_status()
   local result = {
     is_repo = false,
@@ -150,6 +161,10 @@ function M.get_git_status()
   return result
 end
 
+--- Parse git status porcelain output to count file changes
+--- Optimized to use character comparison instead of regex for better performance
+--- @param status_output string Output from 'git status --porcelain'
+--- @return table counts Table with modified, added, deleted, and untracked counts
 function M.parse_git_status(status_output)
   local counts = {
     modified = 0,
@@ -157,30 +172,37 @@ function M.parse_git_status(status_output)
     deleted = 0,
     untracked = 0
   }
-  
+
   for line in status_output:gmatch('[^\r\n]+') do
-    local status_code = line:sub(1, 2)
-    
-    if status_code:match('^M') or status_code:match('^.M') then
-      counts.modified = counts.modified + 1
-    elseif status_code:match('^A') or status_code:match('^.A') then
-      counts.added = counts.added + 1
-    elseif status_code:match('^D') or status_code:match('^.D') then
-      counts.deleted = counts.deleted + 1
-    elseif status_code:match('^%?%?') then
-      counts.untracked = counts.untracked + 1
+    if #line >= 2 then
+      local first_char = line:sub(1, 1)
+      local second_char = line:sub(2, 2)
+
+      -- Use character comparison instead of regex for performance
+      if first_char == 'M' or second_char == 'M' then
+        counts.modified = counts.modified + 1
+      elseif first_char == 'A' or second_char == 'A' then
+        counts.added = counts.added + 1
+      elseif first_char == 'D' or second_char == 'D' then
+        counts.deleted = counts.deleted + 1
+      elseif first_char == '?' and second_char == '?' then
+        counts.untracked = counts.untracked + 1
+      end
     end
   end
-  
+
   return counts
 end
 
+--- Parse git diff numstat output to get insertion and deletion counts
+--- @param diff_output string Output from 'git diff --numstat HEAD'
+--- @return table stats Table with insertions and deletions counts
 function M.parse_diff_stats(diff_output)
   local stats = {
     insertions = 0,
     deletions = 0
   }
-  
+
   for line in diff_output:gmatch('[^\r\n]+') do
     local insertions, deletions = line:match('^(%d+)%s+(%d+)')
     if insertions and deletions then
@@ -188,10 +210,13 @@ function M.parse_diff_stats(diff_output)
       stats.deletions = stats.deletions + tonumber(deletions)
     end
   end
-  
+
   return stats
 end
 
+--- Parse ahead/behind output to get commit counts relative to upstream
+--- @param ahead_behind_output string Output from 'git rev-list --count --left-right'
+--- @return table counts Table with ahead and behind counts
 function M.parse_ahead_behind(ahead_behind_output)
   local behind, ahead = ahead_behind_output:match('^(%d+)%s+(%d+)')
   if behind and ahead then
@@ -203,15 +228,18 @@ function M.parse_ahead_behind(ahead_behind_output)
   return { ahead = 0, behind = 0 }
 end
 
+--- Parse commit details (author and date) from git log output
+--- @param commit_details_output string Output from 'git log -1 --pretty=format'
+--- @return table|nil details Table with author and formatted date, or nil if parsing failed
 function M.parse_commit_details(commit_details_output)
   local lines = vim.split(commit_details_output, '\n')
   if #lines >= 2 then
     local author = lines[1]
     local date_str = lines[2]
-    
+
     -- Parse ISO date and format it
     local formatted_date = M.format_commit_date(date_str)
-    
+
     return {
       author = author,
       date = formatted_date
@@ -220,6 +248,9 @@ function M.parse_commit_details(commit_details_output)
   return nil
 end
 
+--- Format ISO date string to readable format
+--- @param iso_date string ISO 8601 date string
+--- @return string formatted_date Formatted date string (YYYY-MM-DD HH:MM)
 function M.format_commit_date(iso_date)
   -- Parse ISO date format: 2025-08-04 14:23:45 +0000
   local year, month, day, hour, min = iso_date:match('(%d+)-(%d+)-(%d+) (%d+):(%d+)')
@@ -229,6 +260,10 @@ function M.format_commit_date(iso_date)
   return iso_date -- fallback to original if parsing fails
 end
 
+--- Format branch name line with icon
+--- @param git_info table Git information
+--- @param width number Maximum line width
+--- @return table Formatted line with highlight group
 function M.format_branch_line(git_info, width)
   local branch = git_info.branch or 'unknown'
   local icon = icons.get_git_icon('branch')
@@ -239,6 +274,10 @@ function M.format_branch_line(git_info, width)
   }
 end
 
+--- Format remote status line (ahead/behind commits)
+--- @param git_info table Git information
+--- @param width number Maximum line width
+--- @return table Formatted line with highlight group
 function M.format_remote_line(git_info, width)
   local ab = git_info.ahead_behind
   local icon = icons.get_git_icon('remote')
@@ -259,6 +298,10 @@ function M.format_remote_line(git_info, width)
   }
 end
 
+--- Format file changes line (modified, added, deleted counts)
+--- @param git_info table Git information
+--- @param width number Maximum line width
+--- @return table|nil Formatted line with highlight group, or nil if no changes
 function M.format_changes_line(git_info, width)
   local counts = git_info.status_counts
   if not counts then return nil end
@@ -333,6 +376,11 @@ function M.format_date_line(git_info, width)
   }
 end
 
+--- Truncate text to fit within maximum width
+--- Adds ellipsis if text is too long
+--- @param text string Text to truncate
+--- @param max_width number Maximum width in display characters
+--- @return string truncated_text Truncated text with ellipsis if needed
 function M.truncate_text(text, max_width)
   if vim.fn.strwidth(text) <= max_width then
     return text

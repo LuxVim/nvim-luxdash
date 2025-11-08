@@ -1,7 +1,14 @@
+--- Text alignment utilities for nvim-luxdash
+--- Handles horizontal and vertical text alignment with padding support
 local M = {}
 local width_utils = require('luxdash.utils.width')
 
--- Align text horizontally within given width with optional padding
+--- Align text horizontally within given width with optional padding
+--- @param text string|any Text to align (will be converted to string)
+--- @param width number Total width available for alignment
+--- @param alignment string Alignment mode: 'left', 'center', 'right'
+--- @param padding table|nil Optional padding {left = number, right = number}
+--- @return string aligned_text Aligned text with padding applied
 function M.align_text(text, width, alignment, padding)
   local text_str = tostring(text or '')
   
@@ -25,7 +32,14 @@ function M.align_text(text, width, alignment, padding)
   return left_padding .. result .. right_padding
 end
 
--- Align text with highlight group, ensuring highlight covers the full aligned width
+--- Align text with highlight group
+--- Ensures highlight covers the full aligned width for proper visual appearance
+--- @param text string Text to align
+--- @param width number Total width available
+--- @param alignment string Alignment mode: 'left', 'center', 'right'
+--- @param padding table|nil Optional padding
+--- @param highlight_group string Highlight group name (for future use)
+--- @return string aligned_text Aligned text ready for highlighting
 function M.align_text_with_highlight(text, width, alignment, padding, highlight_group)
   local aligned_text = M.align_text(text, width, alignment, padding)
   
@@ -34,7 +48,14 @@ function M.align_text_with_highlight(text, width, alignment, padding, highlight_
   return aligned_text
 end
 
--- Apply vertical alignment to content
+--- Apply vertical alignment to content with padding
+--- Adds empty lines above and/or below content to achieve desired vertical position
+--- @param content table Array of lines (strings or formatted line tables)
+--- @param width number Width of each line for padding
+--- @param height number Total height available for content
+--- @param alignment string Vertical alignment: 'top', 'center', 'bottom'
+--- @param section_type string Section type: 'main' or 'sub' (sub-sections always use top alignment)
+--- @return table aligned_content Content with vertical padding applied
 function M.apply_vertical_alignment(content, width, height, alignment, section_type)
   local content_height = #content
   local pad_top = 0
@@ -78,7 +99,11 @@ function M.apply_vertical_alignment(content, width, height, alignment, section_t
   return aligned
 end
 
--- Extract text and highlight information from a line
+--- Extract text and highlight information from a line
+--- Handles both simple format {highlight, text} and complex format {{h, t}, {h, t}, ...}
+--- @param line string|table Line in various formats
+--- @return string text Combined text content
+--- @return string|table|nil highlight Highlight group or complex highlight structure
 function M.extract_line_parts(line)
   if type(line) == 'table' then
     if #line >= 2 and type(line[1]) == 'string' and type(line[2]) == 'string' then

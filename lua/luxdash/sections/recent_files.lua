@@ -1,5 +1,12 @@
+--- Recent files section for nvim-luxdash
+--- Displays recently opened files from current directory with quick access keybindings (1-9)
 local M = {}
 
+--- Render the recent files section content
+--- @param width number Available width for rendering
+--- @param height number Available height for rendering
+--- @param config table Section configuration (max_files, padding, etc.)
+--- @return table Array of formatted lines with icons, filenames, and key indicators
 function M.render(width, height, config)
   -- Clear any existing keymaps for this section first
   M.clear_file_keymaps()
@@ -98,6 +105,10 @@ function M.render(width, height, config)
   return content
 end
 
+--- Get recent files from current working directory
+--- Filters vim.v.oldfiles to only include readable files from cwd
+--- @param max_count number Maximum number of files to return
+--- @return table Array of relative file paths
 function M.get_recent_files(max_count)
   local recent_files = {}
   
@@ -142,6 +153,11 @@ function M.truncate_filename(filename, max_width)
   end
 end
 
+--- Truncate filename for alignment within available width
+--- Prefers showing basename with "..." prefix over full path
+--- @param filename string Filename to truncate
+--- @param max_width number Maximum width in display characters
+--- @return string truncated_filename Truncated filename optimized for readability
 function M.truncate_filename_for_alignment(filename, max_width)
   if max_width <= 0 then
     return ""
@@ -258,6 +274,10 @@ M.file_icons = {
   CMakeLists = '󱌢'
 }
 
+--- Get icon for file based on extension or special filename
+--- Supports common programming languages, markup, data formats, and images
+--- @param filepath string File path to get icon for
+--- @return string icon Nerd Font icon character
 function M.get_file_icon(filepath)
   -- Extract filename from path
   local filename = vim.fn.fnamemodify(filepath, ':t')
@@ -295,6 +315,8 @@ end
 -- Store recent files keymaps in a global namespace to avoid conflicts
 local recent_files_keymaps = {}
 
+--- Clear all file keymaps for the current buffer
+--- Removes 1-9 keybindings when dashboard is closed or redrawn
 function M.clear_file_keymaps()
   local current_buf = vim.api.nvim_get_current_buf()
   
@@ -308,6 +330,10 @@ function M.clear_file_keymaps()
   end
 end
 
+--- Setup keymap for opening a recent file
+--- Creates buffer-local keybinding (1-9) that opens the file and closes dashboard
+--- @param index number Index of file (1-9)
+--- @param filepath string Path to file to open
 function M.setup_file_keymap(index, filepath)
   local key = tostring(index)
   

@@ -1,3 +1,5 @@
+--- Color management and gradient application for nvim-luxdash
+--- Handles color interpolation, gradient generation, and logo coloring with caching
 local M = {}
 local cache = require('luxdash.core.cache')
 local highlight_pool = require('luxdash.core.highlight_pool')
@@ -12,6 +14,11 @@ local color_presets = {
 local color_cache = {}
 local highlight_group_cache = {}
 
+--- Create a full-row highlight line structure
+--- Used for logo lines where highlighting spans the entire width
+--- @param highlight_group string Highlight group name
+--- @param text string Text content
+--- @return table line Complex line format with highlight spanning full width
 function M.create_full_row_highlight_line(highlight_group, text)
   return {
     {highlight_group, ''},
@@ -20,6 +27,11 @@ function M.create_full_row_highlight_line(highlight_group, text)
   }
 end
 
+--- Get interpolated color from cache or compute and cache it
+--- @param color1 string Start color in hex format (#RRGGBB)
+--- @param color2 string End color in hex format (#RRGGBB)
+--- @param ratio number Interpolation ratio (0.0 to 1.0)
+--- @return string color Interpolated color in hex format
 function M.get_cached_color(color1, color2, ratio)
   local cache_key = color1 .. '_' .. color2 .. '_' .. tostring(ratio)
   if color_cache[cache_key] then
@@ -31,6 +43,11 @@ function M.get_cached_color(color1, color2, ratio)
   return color
 end
 
+--- Get or create cached highlight group for a specific color
+--- @param base_name string Base name for highlight group
+--- @param index number Index to append to base name
+--- @param color string Foreground color in hex format
+--- @return string hl_name Name of the created/cached highlight group
 function M.get_cached_highlight_group(base_name, index, color)
   local hl_name = base_name .. index
   if not highlight_group_cache[hl_name] then
@@ -40,11 +57,19 @@ function M.get_cached_highlight_group(base_name, index, color)
   return hl_name
 end
 
+--- Clear all color and highlight group caches
+--- Called when configuration changes or on setup
 function M.clear_color_cache()
   color_cache = {}
   highlight_group_cache = {}
 end
 
+--- Apply color configuration to logo
+--- Supports row gradients, presets, and custom gradients with caching
+--- @param logo table Array of logo lines (strings)
+--- @param color_config table Color configuration (row_gradient, gradient, or preset)
+--- @param window_width number Window width for caching key
+--- @return table colored_logo Logo with color/highlight information applied
 function M.apply_logo_color(logo, color_config, window_width)
   if not color_config then return logo end
   
