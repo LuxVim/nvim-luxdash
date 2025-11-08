@@ -1,10 +1,11 @@
 local M = {}
+local constants = require('luxdash.constants')
 
 -- Active timers for debouncing
 local timers = {}
 
 function M.debounce(key, callback, delay)
-  delay = delay or 50 -- Default 50ms delay
+  delay = delay or constants.DEBOUNCE.RESIZE_MS -- Default delay from constants
   
   -- Cancel existing timer for this key
   if timers[key] then
@@ -39,13 +40,13 @@ end
 
 -- Specific debouncer for resize events
 function M.debounce_resize(callback)
-  M.debounce('resize', callback, 50)
+  M.debounce('resize', callback, constants.DEBOUNCE.RESIZE_MS)
 end
 
 -- Specific debouncer for window changes
 function M.debounce_window_change(winnr, callback)
   local key = 'window_change_' .. winnr
-  M.debounce(key, callback, 25)
+  M.debounce(key, callback, constants.DEBOUNCE.WINDOW_CHANGE_MS)
 end
 
 -- Cleanup on exit

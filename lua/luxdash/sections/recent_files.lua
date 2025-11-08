@@ -331,10 +331,14 @@ function M.setup_file_keymap(index, filepath)
         float.close()
       end
       
-      -- Open the file in current window
+      -- Open the file in current window (using API for security)
       local full_path = vim.fn.fnamemodify(filepath, ':p')
       if vim.fn.filereadable(full_path) == 1 then
-        vim.cmd('edit ' .. vim.fn.fnameescape(full_path))
+        -- Use nvim_cmd instead of vim.cmd to prevent command injection
+        local ok, err = pcall(vim.api.nvim_cmd, { cmd = 'edit', args = { full_path } }, {})
+        if not ok then
+          vim.notify('Failed to open file: ' .. filepath .. '\n' .. tostring(err), vim.log.levels.ERROR)
+        end
       else
         vim.notify('File not found: ' .. filepath, vim.log.levels.WARN)
       end

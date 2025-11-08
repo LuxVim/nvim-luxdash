@@ -1,14 +1,15 @@
 local M = {}
+local constants = require('luxdash.constants')
 
 -- Pre-computed padding strings for common sizes
 local padding_cache = {}
-for i = 1, 200 do
+for i = 1, constants.CACHE.MAX_PADDING_SIZE do
   padding_cache[i] = string.rep(' ', i)
 end
 
 function M.get_padding(size)
   if size <= 0 then return '' end
-  if size <= 200 then
+  if size <= constants.CACHE.MAX_PADDING_SIZE then
     return padding_cache[size]
   end
   return string.rep(' ', size)
