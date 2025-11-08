@@ -96,16 +96,7 @@ function M.render_bottom_sections(config, layout_data)
         vertical_alignment = 'top',
         padding = { left = 2, right = 2 } -- Add consistent padding for all subsections
       }, section_def.config or {})
-      
-      -- Handle menu-specific config migration
-      if section_def.type == 'menu' then
-        local menu = require('luxdash.utils.menu')
-        if render_config.menu_items and type(render_config.menu_items[1]) == 'string' then
-          -- Convert string array to processed menu items
-          render_config.menu_items = menu.options(render_config.menu_items)
-        end
-      end
-      
+
       -- Apply alignment from config
       local alignment = render_config.alignment or {}
       render_config.title_alignment = alignment.title_horizontal or render_config.title_alignment

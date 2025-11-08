@@ -70,7 +70,6 @@ build = {
     ["luxdash.ui.buffer_manager"] = "lua/luxdash/ui/buffer_manager.lua",
 
     -- Configuration
-    ["luxdash.config.migration"] = "lua/luxdash/config/migration.lua",
     ["luxdash.config.validator"] = "lua/luxdash/config/validator.lua",
 
     -- Menu actions

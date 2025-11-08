@@ -58,31 +58,6 @@ function M.truncate_path_smart(filepath, max_width)
   return constants.TEXT.ELLIPSIS .. truncated_basename
 end
 
---- Truncate text with path-aware logic (legacy compatibility)
---- Similar to truncate_path_smart but maintains backwards compatibility
---- @param text string Text or path to truncate
---- @param max_width number Maximum width in display characters
---- @return string truncated_text Truncated text
-function M.truncate_filename(text, max_width)
-  if vim.fn.strwidth(text) <= max_width then
-    return text
-  end
-
-  local parts = vim.split(text, '/')
-  if #parts > 1 then
-    local basename = parts[#parts]
-    if vim.fn.strwidth(basename) <= max_width - #constants.TEXT.ELLIPSIS then
-      return constants.TEXT.ELLIPSIS .. basename
-    end
-  end
-
-  if max_width > constants.TEXT.MIN_ELLIPSIS_WIDTH then
-    return text:sub(1, max_width - #constants.TEXT.ELLIPSIS) .. constants.TEXT.ELLIPSIS
-  else
-    return text:sub(1, max_width)
-  end
-end
-
 --- Pad text to exact width with spaces
 --- @param text string Text to pad
 --- @param target_width number Target width

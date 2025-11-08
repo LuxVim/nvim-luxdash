@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### BREAKING CHANGES
+- **Removed legacy configuration migration layer**
+  - Deleted `lua/luxdash/config/migration.lua`
+  - Removed automatic conversion of old config format
+  - Users must use the new modular section configuration format
+  - No longer supports `bottom_sections` array format
+- **Removed legacy highlight groups**
+  - Removed `LuxDashSectionTitle` (use `LuxDashSubTitle` or `LuxDashMainTitle`)
+  - Removed `LuxDashSectionSeparator` (use `LuxDashSubSeparator` or `LuxDashMainSeparator`)
+- **Removed deprecated text utilities**
+  - Removed `truncate_filename()` from `utils/text.lua`
+  - Use `truncate_path_smart()` or `truncate_with_ellipsis()` instead
+- **Removed menu config string array support**
+  - Menu items must be pre-processed objects, not string arrays
+  - Use `require('luxdash.utils.menu').options()` to convert if needed
+
+**Migration Guide:**
+If upgrading from a previous version, you must:
+1. Update configuration to use `sections.bottom` array format (see README)
+2. Replace any custom highlight groups using old names
+3. Update any direct usage of removed utility functions
+
 ### Added
 - Comprehensive README with installation instructions, configuration examples, and troubleshooting
 - Health check module (`:checkhealth luxdash`) for diagnosing common issues
@@ -168,15 +190,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Migration Guide
 
-### Upgrading to Unreleased (with constants module)
+### Upgrading from Pre-Breaking Change Version
 
-If you're using custom debounce values or other configuration, note that default values are now defined in `constants.lua`. Your custom configuration will still override these defaults via `setup()`.
+**Important:** This version removes backwards compatibility. You must update your configuration.
 
-No breaking changes - all existing configurations remain compatible.
+**Old format (no longer supported):**
+```lua
+require('luxdash').setup({
+  bottom_sections = { 'menu', 'recent_files', 'git_status' },
+  section_configs = {
+    menu = { title = 'Actions' }
+  }
+})
+```
 
-### Future Breaking Changes
+**New format (required):**
+```lua
+require('luxdash').setup({
+  sections = {
+    main = {
+      type = 'logo',
+      config = {}
+    },
+    bottom = {
+      {
+        id = 'actions',
+        type = 'menu',
+        title = '⚡ Actions',
+        config = {
+          menu_items = { 'newfile', 'backtrack', 'fzf', 'closelux' }
+        }
+      },
+      {
+        id = 'recent_files',
+        type = 'recent_files',
+        title = '📁 Recent Files',
+        config = { max_files = 8 }
+      },
+      {
+        id = 'git_status',
+        type = 'git_status',
+        title = '🌿 Git Status',
+        config = {}
+      }
+    }
+  }
+})
+```
 
-None planned. The project maintains backward compatibility as a core principle.
+See README.md for complete configuration examples.
 
 ---
 
