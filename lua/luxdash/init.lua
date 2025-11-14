@@ -68,7 +68,7 @@ M.config = {
           },
           padding = { left = 2, right = 2 },
           -- Menu-specific config
-          menu_items = { 'newfile', 'backtrack', 'fzf', 'closelux' }
+          menu_items = { 'newfile', 'fzf', 'closelux' }
         }
       },
       {

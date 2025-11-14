@@ -35,7 +35,8 @@ function M.resize_immediate()
         local ok, err = pcall(function()
           -- Create context for the luxdash window
           local context_module = require('luxdash.core.context')
-          local context = context_module.from_window(winnr)
+          local config = require('luxdash').config
+          local context = context_module.from_window(winnr, config)
           context.bufnr = bufnr
 
           -- Build and render with context

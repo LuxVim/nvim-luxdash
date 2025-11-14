@@ -7,7 +7,7 @@ M.groups = {
   -- Menu highlights
   LuxDashMenuTitle = { link = 'Title' },
   LuxDashMenuIcon = { link = 'Special' },
-  LuxDashMenuText = { link = 'Normal' },
+  LuxDashMenuText = { link = 'Identifier' },
   LuxDashMenuKey = { link = 'Number', bold = true },
   LuxDashMenuSeparator = { link = 'NonText' },
 

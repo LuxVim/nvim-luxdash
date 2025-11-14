@@ -88,6 +88,17 @@ function M.batch_apply_highlights(bufnr, highlights, lines)
     end
   end
 
+  -- Get the window displaying this buffer (for width calculations)
+  local winid = nil
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
+      winid = win
+      break
+    end
+  end
+
+  local winwidth = winid and vim.api.nvim_win_get_width(winid) or 80
+
   -- Apply highlights by group
   for namespace_type, group_highlights in pairs(grouped_highlights) do
     if #group_highlights > 0 then
@@ -97,25 +108,11 @@ function M.batch_apply_highlights(bufnr, highlights, lines)
         local start_col = hl.start_col
         local end_col = hl.end_col
 
-        -- Special handling for logo highlights
-        if namespace_type == 'logo' then
-          -- Logo highlights should span full window width for braille characters
-          local winwidth = vim.api.nvim_win_get_width(0)
-          end_col = winwidth
-
-          -- Ensure the line text actually has content to highlight
-          local line_byte_width = vim.fn.strwidth(hl.line_text)
-          if line_byte_width < winwidth then
-            -- Line needs padding to match highlight width - this should have been handled
-            -- by the line processing, but ensure consistency
-            end_col = math.max(end_col, line_byte_width)
-          end
-        else
-          -- Regular highlights bounded by line length
-          local line_length = vim.fn.strwidth(hl.line_text)
-          start_col = math.min(start_col, line_length)
-          end_col = math.min(end_col, line_length)
-        end
+        -- Clamp highlight positions to line byte length
+        -- nvim_buf_add_highlight uses byte positions, not display width
+        local line_byte_len = #hl.line_text
+        start_col = math.min(start_col, line_byte_len)
+        end_col = math.min(end_col, line_byte_len)
 
         if start_col < end_col then
           vim.api.nvim_buf_add_highlight(bufnr, ns, hl.hl_group, hl.line_idx, start_col, end_col)

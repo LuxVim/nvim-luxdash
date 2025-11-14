@@ -1,7 +1,7 @@
 ---Dashboard renderer - draws dashboard content to buffer using dependency injection
 local M = {}
 
-local line_utils = require('luxdash.rendering.line_utils')
+local line_processor = require('luxdash.rendering.line_processor')
 local highlight_pool = require('luxdash.core.highlight_pool')
 
 ---Clear buffer content and highlights
@@ -126,10 +126,10 @@ function M.print(context, bufnr, winid)
       line_pad_left = 0
     end
     
-    -- Pass window width to line_utils for correct logo rendering
-    local padded_text, line_highlights = line_utils.process_line_for_rendering(line, line_pad_left, width)
+    -- Pass window width to line_processor for correct logo rendering
+    local padded_text, line_highlights = line_processor.process_line_for_rendering(line, line_pad_left, width)
     table.insert(lines, padded_text)
-    
+
     for _, hl in ipairs(line_highlights) do
       table.insert(all_highlights, {
         line_num = #lines,
@@ -139,13 +139,13 @@ function M.print(context, bufnr, winid)
       })
     end
   end
-  
+
   if vim.api.nvim_buf_is_valid(bufnr) then
     vim.api.nvim_buf_set_lines(bufnr, 0, 0, false, lines)
   end
 
   -- Apply highlights
-  line_utils.apply_highlights(bufnr, all_highlights, lines)
+  line_processor.apply_highlights(bufnr, all_highlights, lines)
 end
 
 return M

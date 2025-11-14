@@ -17,10 +17,11 @@ function M.open()
 
   -- Create context for building and rendering
   local context_module = require('luxdash.core.context')
+  local config = require('luxdash').config
   local winid = vim.api.nvim_get_current_win()
   local bufnr = vim.api.nvim_get_current_buf()
 
-  local context = context_module.from_window(winid)
+  local context = context_module.from_window(winid, config)
   context.bufnr = bufnr
 
   M.build(context)
@@ -33,8 +34,9 @@ end
 function M.build(context)
   if not context then
     local context_module = require('luxdash.core.context')
+    local config = require('luxdash').config
     local winid = vim.api.nvim_get_current_win()
-    context = context_module.from_window(winid)
+    context = context_module.from_window(winid, config)
   end
 
   local builder = require('luxdash.core.builder')

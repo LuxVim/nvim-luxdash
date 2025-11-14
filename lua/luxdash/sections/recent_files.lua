@@ -1,5 +1,6 @@
 local M = {}
 local text_utils = require('luxdash.utils.text')
+local icons = require('luxdash.utils.icons')
 
 -- Constants for recent files section
 local MAX_FILES_LIMIT = 9  -- Maximum number of recent files to display
@@ -49,7 +50,7 @@ function M.render(width, height, config)
     table.insert(content, {'LuxDashComment', 'No recent files'})
   else
     for i, file in ipairs(recent_files) do
-      local icon = M.get_file_icon(file)
+      local icon = icons.get_file_icon(file)
       local key_part = '[' .. tostring(i) .. ']'
       
       -- Calculate exact width for filename to maintain alignment within content width
@@ -131,120 +132,6 @@ function M.get_recent_files(max_count)
   return recent_files
 end
 
--- File extension to icon mapping
-M.file_icons = {
-  -- Programming languages
-  lua = '󰢱',
-  py = '󰌠',
-  js = '󰌞',
-  ts = '󰛦',
-  jsx = '󰜈',
-  tsx = '󰜈',
-  html = '󰌝',
-  css = '󰌜',
-  scss = '󰌜',
-  sass = '󰌜',
-  json = '󰘦',
-  xml = '󰗀',
-  yml = '󰈙',
-  yaml = '󰈙',
-  toml = '󰈙',
-  ini = '󰈙',
-  conf = '󰈙',
-  config = '󰈙',
-  
-  -- Web & markup
-  vue = '󰡄',
-  svelte = '󰟏',
-  php = '󰌟',
-  rb = '󰴉',
-  go = '󰟓',
-  rs = '󱘗',
-  c = '󰙱',
-  cpp = '󰙲',
-  cc = '󰙲',
-  cxx = '󰙲',
-  h = '󰙱',
-  hpp = '󰙲',
-  java = '󰬷',
-  kt = '󱈙',
-  swift = '󰛥',
-  dart = '󰻂',
-  
-  -- Shell & scripts
-  sh = '󱆃',
-  bash = '󱆃',
-  zsh = '󱆃',
-  fish = '󱆃',
-  ps1 = '󰨊',
-  bat = '󰨊',
-  cmd = '󰨊',
-  
-  -- Data & documents
-  md = '󰍔',
-  txt = '󰈙',
-  rtf = '󰈙',
-  pdf = '󰈦',
-  doc = '󰈦',
-  docx = '󰈦',
-  xls = '󰈛',
-  xlsx = '󰈛',
-  ppt = '󰈧',
-  pptx = '󰈧',
-  
-  -- Images
-  png = '󰈟',
-  jpg = '󰈟',
-  jpeg = '󰈟',
-  gif = '󰈟',
-  svg = '󰈟',
-  ico = '󰈟',
-  webp = '󰈟',
-  bmp = '󰈟',
-  
-  -- Other
-  log = '󰌱',
-  lock = '󰌾',
-  gitignore = '󰊢',
-  dockerfile = '󰡨',
-  makefile = '󱌢',
-  CMakeLists = '󱌢'
-}
-
-function M.get_file_icon(filepath)
-  -- Extract filename from path
-  local filename = vim.fn.fnamemodify(filepath, ':t')
-  
-  -- Handle special filenames
-  local special_files = {
-    ['Dockerfile'] = '󰡨',
-    ['dockerfile'] = '󰡨',
-    ['Makefile'] = '󱌢',
-    ['makefile'] = '󱌢',
-    ['CMakeLists.txt'] = '󱌢',
-    ['.gitignore'] = '󰊢',
-    ['.gitmodules'] = '󰊢',
-    ['.gitattributes'] = '󰊢',
-    ['package.json'] = '󰎙',
-    ['package-lock.json'] = '󰎙',
-    ['yarn.lock'] = '󰎙',
-    ['Cargo.toml'] = '󱘗',
-    ['Cargo.lock'] = '󱘗',
-    ['go.mod'] = '󰟓',
-    ['go.sum'] = '󰟓'
-  }
-  
-  if special_files[filename] then
-    return special_files[filename]
-  end
-  
-  -- Extract extension
-  local extension = vim.fn.fnamemodify(filepath, ':e'):lower()
-  
-  -- Return icon for extension or default
-  return M.file_icons[extension] or '󰈙'
-end
-
 -- Store recent files keymaps in a global namespace to avoid conflicts
 local recent_files_keymaps = {}
 
@@ -293,12 +180,10 @@ function M.setup_file_keymap(index, filepath)
     recent_files_keymaps[current_buf][key] = filepath
     
     vim.keymap.set('n', key, function()
-      -- Close the float manager if open
-      local float = require('luxdash.ui.float_manager')
-      if float.is_open() then
-        float.close()
-      end
-      
+      -- Request float manager close via event bus (avoids circular dependency)
+      local bus = require('luxdash.events.bus')
+      bus.emit('request_close')
+
       -- Open the file in current window
       local full_path = vim.fn.fnamemodify(filepath, ':p')
       if vim.fn.filereadable(full_path) == 1 then
@@ -313,5 +198,24 @@ function M.setup_file_keymap(index, filepath)
     })
   end
 end
+
+-- Register event handlers to avoid circular dependencies
+local bus = require('luxdash.events.bus')
+
+-- Listen for float closing events to cleanup keymaps
+bus.on('float_closing', function(bufnr)
+  if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+    vim.schedule(function()
+      if vim.api.nvim_buf_is_valid(bufnr) then
+        local old_buf = vim.api.nvim_get_current_buf()
+        pcall(vim.api.nvim_set_current_buf, bufnr)
+        pcall(M.clear_file_keymaps)
+        if vim.api.nvim_buf_is_valid(old_buf) then
+          pcall(vim.api.nvim_set_current_buf, old_buf)
+        end
+      end
+    end)
+  end
+end)
 
 return M

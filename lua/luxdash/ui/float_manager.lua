@@ -32,20 +32,10 @@ function M.close()
 
   -- Validate window still exists before attempting close
   if win_to_close and vim.api.nvim_win_is_valid(win_to_close) then
-    -- Clear recent files keymaps before closing
+    -- Emit event for components to cleanup before close (avoids circular dependency)
     if buf_to_cleanup and vim.api.nvim_buf_is_valid(buf_to_cleanup) then
-      -- Use vim.schedule to avoid issues if called from autocmd
-      vim.schedule(function()
-        if vim.api.nvim_buf_is_valid(buf_to_cleanup) then
-          local recent_files = require('luxdash.sections.recent_files')
-          local old_buf = vim.api.nvim_get_current_buf()
-          pcall(vim.api.nvim_set_current_buf, buf_to_cleanup)
-          pcall(recent_files.clear_file_keymaps)
-          if vim.api.nvim_buf_is_valid(old_buf) then
-            pcall(vim.api.nvim_set_current_buf, old_buf)
-          end
-        end
-      end)
+      local bus = require('luxdash.events.bus')
+      bus.emit('float_closing', buf_to_cleanup)
     end
 
     -- Close window with protection
@@ -207,5 +197,15 @@ function M.resize()
   local resizer = require('luxdash.core.resizer')
   resizer.resize()
 end
+
+-- Register event handlers to avoid circular dependencies
+local bus = require('luxdash.events.bus')
+
+-- Listen for close requests from other components (e.g., recent_files)
+bus.on('request_close', function()
+  if M.is_open() then
+    M.close()
+  end
+end)
 
 return M

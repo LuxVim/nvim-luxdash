@@ -8,12 +8,18 @@ local M = {}
 function M.create(opts)
   opts = opts or {}
 
+  -- Require config to be passed explicitly to avoid circular dependency
+  if not opts.config then
+    error('context.create() requires opts.config parameter. ' ..
+          'Pass config explicitly instead of relying on global state.')
+  end
+
   local dashboard_module = require('luxdash.core.dashboard')
   local cache_module = require('luxdash.core.cache')
 
   local context = {
     -- Core dependencies
-    config = opts.config or require('luxdash').config,
+    config = opts.config,
     dashboard = opts.dashboard or dashboard_module.create(),
     cache = opts.cache or cache_module,
 
