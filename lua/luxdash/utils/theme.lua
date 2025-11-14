@@ -114,64 +114,35 @@ local function adjust_saturation(hex, factor)
 end
 
 ---Extract gradient colors from the current theme
----Attempts to derive vibrant colors from various highlight groups
+---Uses String (typically orange) for start and Function (typically purple) for bottom
+---to match the classic LuxDash orange-to-purple gradient style
 ---@return table gradient {start = hex, bottom = hex}
 function M.get_theme_gradient()
-  -- Try to get colors from various highlight groups
-  -- Priority order: Special > Function > Identifier > Title > Normal
-  local candidates = {
-    { group = 'Function', saturation = 1.2, brightness = 1.1 },
-    { group = 'Special', saturation = 1.2, brightness = 1.1 },
-    { group = 'Identifier', saturation = 1.2, brightness = 1.0 },
-    { group = 'String', saturation = 1.1, brightness = 1.0 },
-    { group = 'Type', saturation = 1.2, brightness = 1.0 },
-    { group = 'Keyword', saturation = 1.2, brightness = 1.0 },
-  }
+  -- Primary choice: String (orange) → Function (purple)
+  -- This is the most common pairing that matches the original gradient
+  local start_color = get_hl_fg('String')
+  local bottom_color = get_hl_fg('Function')
 
-  local colors = {}
-  for _, candidate in ipairs(candidates) do
-    local color = get_hl_fg(candidate.group)
-    if color and color ~= '#000000' and color ~= '#ffffff' then
-      -- Enhance the color with saturation and brightness adjustments
-      color = adjust_saturation(color, candidate.saturation)
-      color = adjust_brightness(color, candidate.brightness)
-      table.insert(colors, color)
-    end
+  -- Enhance colors if found
+  if start_color and start_color ~= '#000000' and start_color ~= '#ffffff' then
+    start_color = adjust_saturation(start_color, 1.2)
+    start_color = adjust_brightness(start_color, 1.1)
+  else
+    -- Fallback to classic LuxDash orange
+    start_color = '#ff7801'
   end
 
-  -- If we found at least one color, use it
-  if #colors >= 2 then
-    return {
-      start = colors[1],
-      bottom = colors[2]
-    }
-  elseif #colors == 1 then
-    -- Generate a complementary color
-    local rgb = hex_to_rgb(colors[1])
-    local complement = rgb_to_hex({
-      r = 255 - rgb.r,
-      g = 255 - rgb.g,
-      b = 255 - rgb.b
-    })
-    return {
-      start = colors[1],
-      bottom = complement
-    }
+  if bottom_color and bottom_color ~= '#000000' and bottom_color ~= '#ffffff' then
+    bottom_color = adjust_saturation(bottom_color, 1.2)
+    bottom_color = adjust_brightness(bottom_color, 1.1)
+  else
+    -- Fallback to classic LuxDash purple
+    bottom_color = '#db2dee'
   end
-
-  -- Fallback to getting colors from title and identifier
-  local start = get_hl_fg('Title') or '#569cd6'
-  local bottom = get_hl_fg('Special') or '#c586c0'
-
-  -- Enhance fallback colors
-  start = adjust_saturation(start, 1.3)
-  start = adjust_brightness(start, 1.1)
-  bottom = adjust_saturation(bottom, 1.3)
-  bottom = adjust_brightness(bottom, 1.1)
 
   return {
-    start = start,
-    bottom = bottom
+    start = start_color,
+    bottom = bottom_color
   }
 end
 
