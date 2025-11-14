@@ -36,8 +36,19 @@ function M.set(cache_type, value, ...)
 end
 
 function M.invalidate(cache_type, ...)
-  local key = M.get_cache_key(cache_type, ...)
-  cache_dirty[key] = true
+  if select('#', ...) == 0 then
+    -- No specific parameters - invalidate all entries of this type
+    local prefix = cache_type .. '_'
+    for key in pairs(cache) do
+      if key:sub(1, #prefix) == prefix or key == cache_type then
+        cache_dirty[key] = true
+      end
+    end
+  else
+    -- Specific parameters - invalidate exact key
+    local key = M.get_cache_key(cache_type, ...)
+    cache_dirty[key] = true
+  end
 end
 
 function M.invalidate_all()
@@ -61,6 +72,7 @@ function M.set_layout(layout_data, width, height, config_hash)
 end
 
 function M.invalidate_layout()
+  -- Invalidate all layout cache entries (all widths/heights)
   M.invalidate(CACHE_KEYS.LAYOUT)
 end
 
@@ -74,6 +86,7 @@ function M.set_logo(processed_logo, logo_hash, color_hash, width)
 end
 
 function M.invalidate_logo()
+  -- Invalidate all logo cache entries (all widths)
   M.invalidate(CACHE_KEYS.LOGO)
 end
 

@@ -1,39 +1,82 @@
+---Dashboard builder - constructs dashboard content using dependency injection
 local M = {}
-local dashboard_data = require('luxdash.core.dashboard')
+
 local layout = require('luxdash.layout')
 local section_renderer = require('luxdash.rendering.section_renderer')
 local line_utils = require('luxdash.rendering.line_utils')
 
-function M.build()
-  local config = require('luxdash').config
-  local winheight = vim.api.nvim_win_get_height(0)
-  local winwidth = vim.api.nvim_win_get_width(0)
-  
-  -- Apply buffer padding
+---Build dashboard content using context
+---@param context RenderContext Rendering context with all dependencies
+function M.build(context)
+  -- Validate context
+  local valid, err = context:validate()
+  if not valid then
+    vim.notify('LuxDash: Invalid context - ' .. err, vim.log.levels.ERROR)
+    return
+  end
+
+  local config = context.config
+  local width = context.dimensions.width
+  local height = context.dimensions.height
+
+  -- Apply buffer padding with validation
   local padding = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
-  local content_width = winwidth - padding.left - padding.right
-  local content_height = winheight - padding.top - padding.bottom
-  
+
+  -- Validate padding values
+  vim.validate({
+    ['padding.left'] = { padding.left, 'number' },
+    ['padding.right'] = { padding.right, 'number' },
+    ['padding.top'] = { padding.top, 'number' },
+    ['padding.bottom'] = { padding.bottom, 'number' },
+  })
+
+  -- Ensure padding doesn't exceed window size
+  padding.left = math.max(0, math.min(padding.left, width - 1))
+  padding.right = math.max(0, math.min(padding.right, width - padding.left - 1))
+  padding.top = math.max(0, math.min(padding.top, height - 1))
+  padding.bottom = math.max(0, math.min(padding.bottom, height - padding.top - 1))
+
+  local content_width = math.max(1, width - padding.left - padding.right)
+  local content_height = math.max(1, height - padding.top - padding.bottom)
+
   local layout_data = layout.calculate_layout(content_height, content_width, config.layout_config)
-  
-  dashboard_data.clear_dashboard()
-  
-  -- Render main section
-  M.render_main_section(config, layout_data)
-  
-  -- Render bottom sections dynamically
-  M.render_bottom_sections(config, layout_data)
+
+  -- Clear dashboard before building
+  context.dashboard:clear()
+
+  -- Render sections
+  M.render_main_section(context, layout_data)
+  M.render_bottom_sections(context, layout_data)
+
+  -- Update render count
+  context:increment_render_count()
 end
 
-function M.render_main_section(config, layout_data)
-  local main_section_config = config.sections.main
-  local section_module = layout.load_section(main_section_config.type)
-  
-  if not section_module then
-    -- Fallback to logo section
-    section_module = layout.load_section('logo')
+---Render main section (typically logo)
+---@param context RenderContext Rendering context
+---@param layout_data table Layout configuration
+function M.render_main_section(context, layout_data)
+  local config = context.config
+
+  -- Validate config structure
+  if not config.sections or not config.sections.main then
+    vim.notify('LuxDash: Invalid configuration - missing sections.main', vim.log.levels.ERROR)
+    return
   end
-  
+
+  local main_section_config = config.sections.main
+  local ok, section_module = pcall(layout.load_section, main_section_config.type)
+
+  if not ok or not section_module then
+    vim.notify('LuxDash: Failed to load main section, using fallback logo', vim.log.levels.WARN)
+    -- Fallback to logo section
+    ok, section_module = pcall(layout.load_section, 'logo')
+    if not ok or not section_module then
+      vim.notify('LuxDash: Failed to load fallback logo section', vim.log.levels.ERROR)
+      return
+    end
+  end
+
   -- Prepare section config
   local render_config = vim.tbl_deep_extend('force', {
     logo = config.logo,
@@ -45,46 +88,61 @@ function M.render_main_section(config, layout_data)
     show_title = false,
     show_underline = false
   }, main_section_config.config or {})
-  
-  local main_content = section_renderer.render_section(
-    section_module, 
-    layout_data.main.width, 
-    layout_data.main.height, 
+
+  -- Render with error handling
+  local ok, main_content = pcall(section_renderer.render_section,
+    section_module,
+    layout_data.main.width,
+    layout_data.main.height,
     render_config
   )
-  
+
+  if not ok then
+    vim.notify('LuxDash: Failed to render main section: ' .. tostring(main_content), vim.log.levels.ERROR)
+    main_content = {}
+  end
+
   -- Add main section lines - ensure we get all the content, not just the calculated height
   local actual_main_lines = #main_content
   local allocated_height = layout_data.main.height
-  
+
   -- For logo sections, prioritize showing the complete logo over layout constraints
   local lines_to_add = math.max(actual_main_lines, allocated_height)
-  
+
   -- If the main content (logo) is longer than allocated space, adjust the layout
   if actual_main_lines > allocated_height then
     -- Reduce bottom section height to accommodate the full logo
     layout_data.bottom.height = math.max(1, layout_data.bottom.height - (actual_main_lines - allocated_height))
     layout_data.main.height = actual_main_lines
   end
-  
+
   for i = 1, lines_to_add do
     local main_line = main_content[i] or string.rep(' ', layout_data.main.width)
-    dashboard_data.add_line(main_line)
+    context.dashboard:add_line(main_line)
   end
 end
 
-function M.render_bottom_sections(config, layout_data)
+---Render bottom sections (menu, recent files, git status, etc.)
+---@param context RenderContext Rendering context
+---@param layout_data table Layout configuration
+function M.render_bottom_sections(context, layout_data)
+  local config = context.config
   local bottom_sections = config.sections.bottom or {}
   local sections_content = {}
-  
+
   -- Render each bottom section
   for i, section_def in ipairs(bottom_sections) do
-    local section_module = layout.load_section(section_def.type)
-    
-    if section_module then
+    if not section_def or not section_def.type then
+      vim.notify(string.format('LuxDash: Invalid section definition at index %d', i), vim.log.levels.WARN)
+      goto continue
+    end
+
+    local ok, section_module = pcall(layout.load_section, section_def.type)
+
+    if ok and section_module then
       -- Calculate section width and get layout data
       local section_layout = M.get_section_layout(i, #bottom_sections, layout_data)
-      
+
       -- Prepare section config
       local render_config = vim.tbl_deep_extend('force', {
         section_type = 'sub',
@@ -96,7 +154,7 @@ function M.render_bottom_sections(config, layout_data)
         vertical_alignment = 'top',
         padding = { left = 2, right = 2 } -- Add consistent padding for all subsections
       }, section_def.config or {})
-      
+
       -- Handle menu-specific config migration
       if section_def.type == 'menu' then
         local menu = require('luxdash.utils.menu')
@@ -105,25 +163,32 @@ function M.render_bottom_sections(config, layout_data)
           render_config.menu_items = menu.options(render_config.menu_items)
         end
       end
-      
+
       -- Apply alignment from config
       local alignment = render_config.alignment or {}
       render_config.title_alignment = alignment.title_horizontal or render_config.title_alignment
       render_config.content_alignment = alignment.content_horizontal or render_config.content_alignment
       render_config.vertical_alignment = alignment.vertical or render_config.vertical_alignment
-      
-      local section_content = section_renderer.render_section(
+
+      -- Render with error handling
+      local render_ok, section_content = pcall(section_renderer.render_section,
         section_module,
         section_layout.width,
         section_layout.height,
         render_config
       )
-      
+
+      if not render_ok then
+        vim.notify(string.format('LuxDash: Failed to render section %d: %s', i, tostring(section_content)), vim.log.levels.WARN)
+        section_content = {}
+      end
+
       table.insert(sections_content, {
         content = section_content,
         width = section_layout.width
       })
     else
+      vim.notify(string.format('LuxDash: Failed to load section %d (%s), using empty fallback', i, section_def.type or 'unknown'), vim.log.levels.WARN)
       -- Empty section fallback
       local section_layout = M.get_section_layout(i, #bottom_sections, layout_data)
       local empty_content = {}
@@ -135,13 +200,32 @@ function M.render_bottom_sections(config, layout_data)
         width = section_layout.width
       })
     end
+
+    ::continue::
   end
-  
+
   -- Combine sections horizontally
-  M.combine_sections_horizontally(sections_content, layout_data.bottom.height)
+  M.combine_sections_horizontally(context, sections_content, layout_data.bottom.height)
 end
 
 function M.get_section_layout(section_index, total_sections, layout_data)
+  -- Validate inputs
+  vim.validate({
+    section_index = { section_index, 'number' },
+    total_sections = { total_sections, 'number' },
+    layout_data = { layout_data, 'table' },
+  })
+
+  if section_index < 1 or section_index > total_sections then
+    vim.notify(string.format('LuxDash: Invalid section_index %d (total: %d)', section_index, total_sections), vim.log.levels.WARN)
+    return { width = 0, height = 0 }
+  end
+
+  if not layout_data.bottom then
+    vim.notify('LuxDash: Missing layout_data.bottom', vim.log.levels.WARN)
+    return { width = 0, height = 0 }
+  end
+
   if total_sections == 1 then
     return {
       width = layout_data.bottom.width or layout_data.bottom.left.width + layout_data.bottom.center.width + layout_data.bottom.right.width,
@@ -180,7 +264,11 @@ function M.get_section_layout(section_index, total_sections, layout_data)
   end
 end
 
-function M.combine_sections_horizontally(sections_content, height)
+---Combine multiple sections horizontally into dashboard lines
+---@param context RenderContext Rendering context
+---@param sections_content table Array of section content
+---@param height number Target height
+function M.combine_sections_horizontally(context, sections_content, height)
   -- Helper function to ensure exact width
   local function ensure_exact_width(line, target_width)
     -- For complex format lines, calculate width without double-processing
@@ -332,7 +420,7 @@ function M.combine_sections_horizontally(sections_content, height)
     
     -- Combine line parts while preserving section boundaries for proper highlighting
     local combined_line = line_utils.combine_line_parts(line_parts)
-    dashboard_data.add_line(combined_line)
+    context.dashboard:add_line(combined_line)
   end
 end
 

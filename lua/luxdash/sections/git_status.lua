@@ -1,5 +1,63 @@
 local M = {}
 local icons = require('luxdash.utils.icons')
+local text_utils = require('luxdash.utils.text')
+
+-- Constants for git command execution
+local GIT_TIMEOUT_MS = 2000  -- 2 seconds timeout for git commands
+local GIT_CACHE_TTL_MS = 5000  -- 5 seconds TTL for cache
+
+-- Cache for git status to avoid running git commands on every render
+local git_cache = {
+  data = nil,
+  timestamp = 0,
+  ttl = GIT_CACHE_TTL_MS,
+  cwd = nil
+}
+
+---Execute a git command with timeout protection
+---@param cmd string The git command to execute
+---@return string|nil output Command output or nil on failure
+---@return boolean success Whether the command succeeded
+local function safe_git_cmd(cmd)
+  local output
+  local success = false
+  local timer_expired = false
+
+  -- Create a timer that will set a flag if command takes too long
+  local timer = vim.loop.new_timer()
+  if not timer then
+    return nil, false
+  end
+
+  timer:start(GIT_TIMEOUT_MS, 0, function()
+    timer_expired = true
+    timer:stop()
+    timer:close()
+  end)
+
+  -- Execute command
+  output = vim.fn.system(cmd)
+  success = vim.v.shell_error == 0
+
+  -- Stop timer if still running
+  if not timer_expired then
+    if not timer:is_closing() then
+      timer:stop()
+      timer:close()
+    end
+  end
+
+  -- If timer expired, consider it a failure
+  if timer_expired then
+    return nil, false
+  end
+
+  if success and output then
+    return output, true
+  end
+
+  return nil, false
+end
 
 function M.render(width, height, config)
   local git_info = M.get_git_status()
@@ -92,6 +150,16 @@ function M.render(width, height, config)
 end
 
 function M.get_git_status()
+  -- Check cache validity
+  local now = vim.loop.now()
+  local cwd = vim.fn.getcwd()
+
+  if git_cache.data and
+     git_cache.cwd == cwd and
+     (now - git_cache.timestamp) < git_cache.ttl then
+    return git_cache.data
+  end
+
   local result = {
     is_repo = false,
     branch = nil,
@@ -102,52 +170,68 @@ function M.get_git_status()
     ahead_behind = nil,
     remote_info = nil
   }
-  
-  local branch_output = vim.fn.system('git branch --show-current 2>/dev/null')
-  if vim.v.shell_error == 0 and branch_output then
+
+  local branch_output, branch_success = safe_git_cmd('git branch --show-current 2>/dev/null')
+  if branch_success and branch_output then
     result.is_repo = true
     result.branch = vim.trim(branch_output)
   else
+    -- Cache even negative results to avoid repeated git calls
+    git_cache.data = result
+    git_cache.timestamp = now
+    git_cache.cwd = cwd
     return result
   end
   
-  local status_output = vim.fn.system('git status --porcelain 2>/dev/null')
-  if vim.v.shell_error == 0 then
+  local status_output, status_success = safe_git_cmd('git status --porcelain 2>/dev/null')
+  if status_success and status_output then
     result.status_counts = M.parse_git_status(status_output)
   end
   
   -- Get last commit info with full details
-  local commit_output = vim.fn.system('git log -1 --pretty=format:"%h %s" 2>/dev/null')
-  if vim.v.shell_error == 0 and commit_output then
+  local commit_output, commit_success = safe_git_cmd('git log -1 --pretty=format:"%h %s" 2>/dev/null')
+  if commit_success and commit_output then
     result.commit_info = vim.trim(commit_output)
   end
   
   -- Get detailed commit information
-  local commit_details_output = vim.fn.system('git log -1 --pretty=format:"%an <%ae>%n%ci" 2>/dev/null')
-  if vim.v.shell_error == 0 and commit_details_output then
+  local commit_details_output, commit_details_success = safe_git_cmd('git log -1 --pretty=format:"%an <%ae>%n%ci" 2>/dev/null')
+  if commit_details_success and commit_details_output then
     result.commit_details = M.parse_commit_details(commit_details_output)
   end
   
   -- Get diff stats (insertions/deletions)
-  local diff_output = vim.fn.system('git diff --numstat HEAD 2>/dev/null')
-  if vim.v.shell_error == 0 then
+  local diff_output, diff_success = safe_git_cmd('git diff --numstat HEAD 2>/dev/null')
+  if diff_success and diff_output then
     result.diff_stats = M.parse_diff_stats(diff_output)
   end
   
   -- Get ahead/behind info with remote branch name
-  local remote_branch_output = vim.fn.system('git rev-parse --abbrev-ref @{upstream} 2>/dev/null')
-  if vim.v.shell_error == 0 and remote_branch_output then
+  local remote_branch_output, remote_success = safe_git_cmd('git rev-parse --abbrev-ref @{upstream} 2>/dev/null')
+  if remote_success and remote_branch_output then
     result.remote_info = {
       branch = vim.trim(remote_branch_output)
     }
-    
-    local ahead_behind_output = vim.fn.system('git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null')
-    if vim.v.shell_error == 0 and ahead_behind_output then
+
+    local ahead_behind_output, ahead_behind_success = safe_git_cmd('git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null')
+    if ahead_behind_success and ahead_behind_output then
       result.ahead_behind = M.parse_ahead_behind(ahead_behind_output)
     end
   end
-  
+
+  -- Cache the result
+  git_cache.data = result
+  git_cache.timestamp = now
+  git_cache.cwd = cwd
+
   return result
+end
+
+-- Clear cache manually if needed (e.g., after git operations)
+function M.clear_cache()
+  git_cache.data = nil
+  git_cache.timestamp = 0
+  git_cache.cwd = nil
 end
 
 function M.parse_git_status(status_output)
@@ -233,9 +317,9 @@ function M.format_branch_line(git_info, width)
   local branch = git_info.branch or 'unknown'
   local icon = icons.get_git_icon('branch')
   local branch_text = icon .. '  Branch:       ' .. branch
-  
+
   return {
-    {'LuxDashGitBranch', M.truncate_text(branch_text, width)}
+    {'LuxDashGitBranch', text_utils.truncate(branch_text, width, { suffix = '...' })}
   }
 end
 
@@ -255,7 +339,7 @@ function M.format_remote_line(git_info, width)
   end
   
   return {
-    {'LuxDashGitSync', M.truncate_text(remote_text, width)}
+    {'LuxDashGitSync', text_utils.truncate(remote_text, width, { suffix = '...' })}
   }
 end
 
@@ -284,7 +368,7 @@ function M.format_changes_line(git_info, width)
   local changes_text = icon .. '  File:         ' .. table.concat(parts, ' ')
   
   return {
-    {'LuxDashGitSync', M.truncate_text(changes_text, width)}
+    {'LuxDashGitSync', text_utils.truncate(changes_text, width, { suffix = '...' })}
   }
 end
 
@@ -299,7 +383,7 @@ function M.format_stats_line(git_info, width)
     icon, stats.insertions, stats.deletions)
   
   return {
-    {'LuxDashGitDiff', M.truncate_text(stats_text, width)}
+    {'LuxDashGitDiff', text_utils.truncate(stats_text, width, { suffix = '...' })}
   }
 end
 
@@ -309,7 +393,7 @@ function M.format_commit_line(git_info, width)
   local commit_text = icon .. '  Last commit: "' .. commit_msg .. '"'
   
   return {
-    {'LuxDashGitCommit', M.truncate_text(commit_text, width)}
+    {'LuxDashGitCommit', text_utils.truncate(commit_text, width, { suffix = '...' })}
   }
 end
 
@@ -319,7 +403,7 @@ function M.format_author_line(git_info, width)
   local author_text = icon .. '  Author:       ' .. author
   
   return {
-    {'LuxDashGitCommit', M.truncate_text(author_text, width)}
+    {'LuxDashGitCommit', text_utils.truncate(author_text, width, { suffix = '...' })}
   }
 end
 
@@ -329,21 +413,8 @@ function M.format_date_line(git_info, width)
   local date_text = icon .. '  Date:         ' .. date  
   
   return {
-    {'LuxDashGitCommit', M.truncate_text(date_text, width)}
+    {'LuxDashGitCommit', text_utils.truncate(date_text, width, { suffix = '...' })}
   }
 end
-
-function M.truncate_text(text, max_width)
-  if vim.fn.strwidth(text) <= max_width then
-    return text
-  end
-  
-  if max_width > 3 then
-    return text:sub(1, max_width - 3) .. '...'
-  else
-    return text:sub(1, max_width)
-  end
-end
-
 
 return M

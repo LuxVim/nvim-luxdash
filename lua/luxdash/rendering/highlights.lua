@@ -1,49 +1,52 @@
 local M = {}
 
 -- Define default highlight groups for LuxDash
+-- These are linked to standard Neovim highlight groups to automatically
+-- adapt to any colorscheme. Users can override these in their config if needed.
 M.groups = {
   -- Menu highlights
-  LuxDashMenuTitle = { fg = '#569cd6', bold = true },
-  LuxDashMenuIcon = { fg = '#4ec9b0' },
-  LuxDashMenuText = { fg = '#d4d4d4' },
-  LuxDashMenuKey = { fg = '#dcdcaa', bold = true },
-  LuxDashMenuSeparator = { fg = '#606060' },
-  
+  LuxDashMenuTitle = { link = 'Title' },
+  LuxDashMenuIcon = { link = 'Special' },
+  LuxDashMenuText = { link = 'Normal' },
+  LuxDashMenuKey = { link = 'Number', bold = true },
+  LuxDashMenuSeparator = { link = 'NonText' },
+
   -- Main section highlights (top sections)
-  LuxDashMainTitle = { fg = '#569cd6', bold = true },
-  LuxDashMainSeparator = { fg = '#569cd6' },
-  
+  LuxDashMainTitle = { link = 'Title', bold = true },
+  LuxDashMainSeparator = { link = 'Special' },
+
   -- Sub section highlights (bottom sections)
-  LuxDashSubTitle = { fg = '#4ec9b0', bold = true },
-  LuxDashSubSeparator = { fg = '#d4d4d4' },
-  
+  LuxDashSubTitle = { link = 'Function', bold = true },
+  LuxDashSubSeparator = { link = 'Comment' },
+
   -- Legacy section highlights (for compatibility)
-  LuxDashSectionTitle = { fg = '#569cd6', bold = true },
-  LuxDashSectionSeparator = { fg = '#606060' },
-  
+  LuxDashSectionTitle = { link = 'Title', bold = true },
+  LuxDashSectionSeparator = { link = 'NonText' },
+
   -- Recent files highlights
-  LuxDashRecentFile = { fg = '#d4d4d4' },
-  LuxDashRecentPath = { fg = '#ff7801' },
-  LuxDashRecentIcon = { fg = '#ff7801' },
-  LuxDashRecentKey = { fg = '#db2dee', bold = true },
-  
-  -- Git status highlights using standard git colors
-  LuxDashGitBranch = { fg = '#58a6ff', bold = true },     -- Blue for branch
-  LuxDashGitModified = { fg = '#f0883e' },                -- Orange for modified (M)
-  LuxDashGitAdded = { fg = '#3fb950' },                   -- Green for staged/added (A)
-  LuxDashGitDeleted = { fg = '#f85149' },                 -- Red for deleted (D)
-  LuxDashGitUntracked = { fg = '#8b949e' },               -- Gray for untracked (?)
-  LuxDashGitClean = { fg = '#3fb950', bold = true },      -- Green for clean status
-  LuxDashGitCommit = { fg = '#d2a8ff' },                  -- Purple for commit info
-  LuxDashGitDiff = { fg = '#58a6ff' },                    -- Blue for diff stats
-  LuxDashGitSync = { fg = '#f0883e' },                    -- Orange for sync status
-  
-  -- Logo highlights (existing)
-  LuxDashLogo = { fg = '#569cd6' },
-  
+  LuxDashRecentFile = { link = 'Identifier' },
+  LuxDashRecentPath = { link = 'Directory' },
+  LuxDashRecentIcon = { link = 'Special' },
+  LuxDashRecentKey = { link = 'Number', bold = true },
+
+  -- Git status highlights
+  -- Links to standard diff/diagnostic groups for consistent theming
+  LuxDashGitBranch = { link = 'Function', bold = true },
+  LuxDashGitModified = { link = 'WarningMsg' },
+  LuxDashGitAdded = { link = 'DiffAdd' },
+  LuxDashGitDeleted = { link = 'DiffDelete' },
+  LuxDashGitUntracked = { link = 'Comment' },
+  LuxDashGitClean = { link = 'DiffAdd', bold = true },
+  LuxDashGitCommit = { link = 'Type' },
+  LuxDashGitDiff = { link = 'Function' },
+  LuxDashGitSync = { link = 'WarningMsg' },
+
+  -- Logo highlights
+  LuxDashLogo = { link = 'Title' },
+
   -- General text
-  LuxDashText = { fg = '#d4d4d4' },
-  LuxDashComment = { fg = '#6a9955' }
+  LuxDashText = { link = 'Normal' },
+  LuxDashComment = { link = 'Comment' }
 }
 
 function M.setup()

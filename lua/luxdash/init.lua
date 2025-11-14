@@ -1,5 +1,15 @@
+---@class LuxDash
+---Main module for LuxDash dashboard plugin
 local M = {}
 
+---@class LuxDashConfig
+---@field name string Dashboard name
+---@field logo table ASCII art logo lines
+---@field logo_color table Logo gradient color configuration
+---@field sections table Section configuration (main and bottom)
+---@field layout_config table Layout configuration
+---@field float table Floating window configuration
+---@field padding table Dashboard padding configuration
 M.config = {
   name = 'LuxDash',
   layout = 'horizontal',
@@ -121,22 +131,53 @@ M.config = {
   }
 }
 
+---Setup LuxDash with custom configuration
+---@param opts? LuxDashConfig Custom configuration to merge with defaults
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend('force', M.config, opts or {})
-  
-  
+  -- Validate and merge configuration
+  local validator = require('luxdash.config.validator')
+
+  -- Apply defaults first
+  local merged_config = validator.apply_defaults(opts or {})
+  merged_config = vim.tbl_deep_extend('force', M.config, merged_config)
+
+  -- Validate configuration
+  local valid, errors = validator.validate(merged_config)
+
+  if not valid then
+    local error_msg = validator.format_errors(errors)
+    vim.notify(error_msg, vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Show warnings if any
+  local has_warnings = false
+  for _, err in ipairs(errors) do
+    if err.severity == 'warning' then
+      has_warnings = true
+      break
+    end
+  end
+
+  if has_warnings then
+    local warning_msg = validator.format_errors(errors)
+    vim.notify(warning_msg, vim.log.levels.WARN)
+  end
+
+  M.config = merged_config
+
   -- Invalidate all caches when configuration changes
   local cache = require('luxdash.core.cache')
   cache.invalidate_all()
-  
+
   -- Clear color cache when configuration changes
   local colors = require('luxdash.rendering.colors')
   colors.clear_color_cache()
-  
+
   -- Setup highlights
   local highlights = require('luxdash.rendering.highlights')
   highlights.setup()
-  
+
   local float_manager = require('luxdash.ui.float_manager')
   float_manager.setup(M.config.float or {})
   
@@ -150,10 +191,14 @@ function M.setup(opts)
 end
 
 
+---Open the LuxDash dashboard
+---Creates and displays the dashboard in a floating window
 function M.open()
     require('luxdash.core').open()
 end
 
+---Toggle the LuxDash dashboard visibility
+---Opens if closed, closes if open
 function M.toggle()
     local float_manager = require('luxdash.ui.float_manager')
     float_manager.toggle()

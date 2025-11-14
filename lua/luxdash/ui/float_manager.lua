@@ -23,25 +23,43 @@ function M.is_open()
 end
 
 function M.close()
-  if M.is_open() then
+  -- Store window handle before any operations that might invalidate it
+  local win_to_close = float_win
+  local buf_to_cleanup = float_buf
+
+  -- Clear state immediately to prevent re-entrance
+  float_win = nil
+
+  -- Validate window still exists before attempting close
+  if win_to_close and vim.api.nvim_win_is_valid(win_to_close) then
     -- Clear recent files keymaps before closing
-    if float_buf and vim.api.nvim_buf_is_valid(float_buf) then
-      local recent_files = require('luxdash.sections.recent_files')
-      local old_buf = vim.api.nvim_get_current_buf()
-      pcall(vim.api.nvim_set_current_buf, float_buf)
-      pcall(recent_files.clear_file_keymaps)
-      if vim.api.nvim_buf_is_valid(old_buf) then
-        pcall(vim.api.nvim_set_current_buf, old_buf)
-      end
+    if buf_to_cleanup and vim.api.nvim_buf_is_valid(buf_to_cleanup) then
+      -- Use vim.schedule to avoid issues if called from autocmd
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf_to_cleanup) then
+          local recent_files = require('luxdash.sections.recent_files')
+          local old_buf = vim.api.nvim_get_current_buf()
+          pcall(vim.api.nvim_set_current_buf, buf_to_cleanup)
+          pcall(recent_files.clear_file_keymaps)
+          if vim.api.nvim_buf_is_valid(old_buf) then
+            pcall(vim.api.nvim_set_current_buf, old_buf)
+          end
+        end
+      end)
     end
-    
-    vim.api.nvim_win_close(float_win, true)
-    float_win = nil
+
+    -- Close window with protection
+    pcall(vim.api.nvim_win_close, win_to_close, true)
   end
-  
-  if float_buf and vim.api.nvim_buf_is_valid(float_buf) then
+
+  -- Handle buffer cleanup
+  if buf_to_cleanup and vim.api.nvim_buf_is_valid(buf_to_cleanup) then
     if M.config.hide_buffer then
-      vim.api.nvim_buf_delete(float_buf, { force = true })
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf_to_cleanup) then
+          pcall(vim.api.nvim_buf_delete, buf_to_cleanup, { force = true })
+        end
+      end)
       float_buf = nil
     end
   end
@@ -50,15 +68,16 @@ end
 function M.create_buffer()
   if not float_buf or not vim.api.nvim_buf_is_valid(float_buf) then
     float_buf = vim.api.nvim_create_buf(false, true)
-    
-    vim.api.nvim_buf_set_option(float_buf, 'buftype', 'nofile')
-    vim.api.nvim_buf_set_option(float_buf, 'bufhidden', M.config.hide_buffer and 'wipe' or 'hide')
-    vim.api.nvim_buf_set_option(float_buf, 'buflisted', false)
-    vim.api.nvim_buf_set_option(float_buf, 'swapfile', false)
-    vim.api.nvim_buf_set_option(float_buf, 'modifiable', true)
-    vim.api.nvim_buf_set_option(float_buf, 'filetype', 'luxdash')
+
+    -- Use vim.bo instead of deprecated nvim_buf_set_option
+    vim.bo[float_buf].buftype = 'nofile'
+    vim.bo[float_buf].bufhidden = M.config.hide_buffer and 'wipe' or 'hide'
+    vim.bo[float_buf].buflisted = false
+    vim.bo[float_buf].swapfile = false
+    vim.bo[float_buf].modifiable = true
+    vim.bo[float_buf].filetype = 'luxdash'
   end
-  
+
   return float_buf
 end
 
@@ -120,12 +139,13 @@ function M.open()
 end
 
 function M.configure_window()
-  vim.api.nvim_win_set_option(float_win, 'number', false)
-  vim.api.nvim_win_set_option(float_win, 'relativenumber', false)
-  vim.api.nvim_win_set_option(float_win, 'signcolumn', 'no')
-  vim.api.nvim_win_set_option(float_win, 'foldcolumn', '0')
-  vim.api.nvim_win_set_option(float_win, 'cursorline', false)
-  vim.api.nvim_win_set_option(float_win, 'wrap', false)
+  -- Use vim.wo instead of deprecated nvim_win_set_option
+  vim.wo[float_win].number = false
+  vim.wo[float_win].relativenumber = false
+  vim.wo[float_win].signcolumn = 'no'
+  vim.wo[float_win].foldcolumn = '0'
+  vim.wo[float_win].cursorline = false
+  vim.wo[float_win].wrap = false
 end
 
 function M.setup_autocmds(buf)

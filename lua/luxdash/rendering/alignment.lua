@@ -1,5 +1,5 @@
 local M = {}
-local width_utils = require('luxdash.utils.width')
+local text_utils = require('luxdash.utils.text')
 
 -- Align text horizontally within given width with optional padding
 function M.align_text(text, width, alignment, padding)
@@ -12,16 +12,16 @@ function M.align_text(text, width, alignment, padding)
   
   local result
   if alignment == 'left' then
-    result = width_utils.left_align_text(text_str, available_width)
+    result = text_utils.pad_right(text_str, available_width)
   elseif alignment == 'right' then
-    result = width_utils.right_align_text(text_str, available_width)
+    result = text_utils.pad_left(text_str, available_width)
   else -- center
-    result = width_utils.center_text(text_str, available_width)
+    result = text_utils.pad_center(text_str, available_width)
   end
-  
+
   -- Add section padding
-  local left_padding = width_utils.get_padding(left_pad)
-  local right_padding = width_utils.get_padding(right_pad)
+  local left_padding = text_utils.get_padding(left_pad)
+  local right_padding = text_utils.get_padding(right_pad)
   return left_padding .. result .. right_padding
 end
 
@@ -56,7 +56,7 @@ function M.apply_vertical_alignment(content, width, height, alignment, section_t
   local aligned = {}
   
   -- Add top padding
-  local empty_line = width_utils.get_padding(width)
+  local empty_line = text_utils.get_padding(width)
   for _ = 1, pad_top do
     table.insert(aligned, empty_line)
   end
@@ -69,7 +69,7 @@ function M.apply_vertical_alignment(content, width, height, alignment, section_t
   -- Add bottom padding (only for sub-sections or when content doesn't exceed height)
   if section_type == 'sub' or #aligned <= height then
     local remaining_lines = height - #aligned
-    local empty_line = width_utils.get_padding(width)
+    local empty_line = text_utils.get_padding(width)
     for _ = 1, remaining_lines do
       table.insert(aligned, empty_line)
     end

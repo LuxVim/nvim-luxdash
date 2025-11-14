@@ -1,25 +1,30 @@
 local M = {}
-local width_utils = require('luxdash.utils.width')
+local text_utils = require('luxdash.utils.text')
 local highlight_pool = require('luxdash.core.highlight_pool')
 
 -- Reusable objects to reduce memory allocation
 local temp_highlights = {}
 local temp_parts = {}
 
-function M.process_logo_line(line)
+---Process logo line with full-width highlighting
+---@param line table Logo line in format {{hl, ''}, {hl, text}, {hl, ''}}
+---@param window_width? number Optional window width (if not provided, uses current window)
+---@return string text Full-width text with centering
+---@return table highlights Array with single full-width highlight
+function M.process_logo_line(line, window_width)
   local highlight_group = line[1][1]
   local content_text = line[2][2] or ''
-  local winwidth = vim.api.nvim_win_get_width(0)
-  
+  local winwidth = window_width or vim.api.nvim_win_get_width(0)
+
   local content_display_width = vim.fn.strdisplaywidth(content_text)
   local full_width_text
-  
+
   if content_display_width > winwidth then
     full_width_text = M.trim_content_to_width(content_text, winwidth)
   else
     full_width_text = M.center_content_in_width(content_text, winwidth)
   end
-  
+
   return full_width_text, {{
     start_col = 0,
     end_col = winwidth,
@@ -89,24 +94,25 @@ function M.center_content_in_width(content_text, width)
 end
 
 function M.combine_line_parts(parts)
-  local combined_text = ''
-  
+  -- Use table for string building (more efficient than concatenation)
+  local text_parts = {}
+
   -- Clear and reuse highlights table to reduce allocation
   for i = #temp_highlights, 1, -1 do
     temp_highlights[i] = nil
   end
-  
+
   local col_offset = 0
-  
+
   for _, part in ipairs(parts) do
     if type(part) == 'table' then
       if #part >= 2 and type(part[1]) == 'string' then
         -- Simple format: {highlight, text}
         local part_text = tostring(part[2] or '')
         local part_hl = part[1]
-        
-        combined_text = combined_text .. part_text
-        
+
+        table.insert(text_parts, part_text)
+
         if part_hl and type(part_hl) == 'string' then
           local text_byte_len = vim.fn.strlen(part_text)
           table.insert(temp_highlights, {
@@ -124,9 +130,9 @@ function M.combine_line_parts(parts)
           if type(subpart) == 'table' and #subpart >= 2 then
             local subpart_text = tostring(subpart[2] or '')
             local subpart_hl = subpart[1]
-            
-            combined_text = combined_text .. subpart_text
-            
+
+            table.insert(text_parts, subpart_text)
+
             if subpart_hl and type(subpart_hl) == 'string' then
               local text_byte_len = vim.fn.strlen(subpart_text)
               table.insert(temp_highlights, {
@@ -144,11 +150,13 @@ function M.combine_line_parts(parts)
     else
       -- Plain text
       local part_text = tostring(part)
-      combined_text = combined_text .. part_text
+      table.insert(text_parts, part_text)
       col_offset = col_offset + vim.fn.strlen(part_text)
     end
   end
-  
+
+  local combined_text = table.concat(text_parts)
+
   if #temp_highlights > 0 then
     -- Return a copy of highlights to avoid mutation
     local highlights_copy = {}
@@ -161,33 +169,42 @@ function M.combine_line_parts(parts)
   end
 end
 
-function M.process_line_for_rendering(line, pad_left)
+---Process a line for rendering with padding and highlights
+---@param line any Line content (string or table)
+---@param pad_left number Left padding to apply
+---@param window_width? number Optional window width (if not provided, uses current window)
+---@return string text Padded text
+---@return table highlights Array of highlight specifications
+function M.process_line_for_rendering(line, pad_left, window_width)
+  -- Use provided window width or fallback to current window
+  window_width = window_width or vim.api.nvim_win_get_width(0)
+
   if type(line) == 'table' then
     -- Check if it's a complex multi-highlight structure
     if #line > 0 and type(line[1]) == 'table' then
       -- Check if this is a full-row highlight line (3 parts: left padding, content, right padding)
-      if #line == 3 and 
+      if #line == 3 and
          type(line[1]) == 'table' and type(line[2]) == 'table' and type(line[3]) == 'table' and
-         line[1][2] == '' and line[3][2] == '' and 
+         line[1][2] == '' and line[3][2] == '' and
          line[1][1] and line[1][1]:match('^LuxDashLogo') then
-        
-        return M.process_logo_line(line)
+
+        return M.process_logo_line(line, window_width)
       else
         -- Regular complex format: {{highlight, text}, {highlight, text}, ...}
         local combined = M.combine_line_parts({line})
         local text = combined[1] or combined
         local highlights = type(combined) == 'table' and combined[2] or {}
         local padded_text = string.rep(' ', pad_left) .. text
-        
+
         local processed_highlights = {}
         if type(highlights) == 'table' then
           for _, hl in ipairs(highlights) do
             if hl.hl_group and type(hl.hl_group) == 'string' then
               local adjusted_end_col = pad_left + hl.end_col
-              
+
               -- For logo highlights, create full-width highlight and text
               if hl.hl_group:match('^LuxDashLogo') then
-                local winwidth = vim.api.nvim_win_get_width(0)
+                local winwidth = window_width
                 
                 -- For logo lines in complex format, we need to recreate the full line
                 -- Extract the text content from the combined line
@@ -382,18 +399,26 @@ function M.ensure_logo_line_coverage(lines, line_idx, line_text)
   return line_byte_length
 end
 
-function M.apply_highlights(highlights, lines)
+---Apply highlights to buffer
+---@param bufnr number Buffer number
+---@param highlights table Array of highlight specifications
+---@param lines table Array of line text
+function M.apply_highlights(bufnr, highlights, lines)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
   -- Sort highlights by priority (logo highlights first to ensure they're not overridden)
   local sorted_highlights = {}
   for _, hl in ipairs(highlights) do
     table.insert(sorted_highlights, hl)
   end
-  
+
   table.sort(sorted_highlights, function(a, b)
     -- Logo highlights get priority over menu highlights
     local a_is_logo = a.hl_group and a.hl_group:match('^LuxDashLogo') ~= nil
     local b_is_logo = b.hl_group and b.hl_group:match('^LuxDashLogo') ~= nil
-    
+
     if a_is_logo and not b_is_logo then
       return false  -- Apply logo highlights after menu highlights so they take precedence
     elseif not a_is_logo and b_is_logo then
@@ -402,7 +427,7 @@ function M.apply_highlights(highlights, lines)
       return false  -- Same priority, maintain order
     end
   end)
-  
+
   for _, hl in ipairs(sorted_highlights) do
     -- Validate highlight bounds
     local line_idx = hl.line_num - 1
@@ -411,16 +436,16 @@ function M.apply_highlights(highlights, lines)
       local line_length = vim.fn.strwidth(line_text)
       local start_col = math.max(0, hl.start_col)
       local end_col = hl.end_col
-      
+
       if hl.hl_group and hl.hl_group:match('^LuxDashLogo') then
         end_col = M.ensure_logo_line_coverage(lines, line_idx, line_text)
       else
         start_col = math.min(start_col, line_length)
         end_col = math.max(start_col, math.min(hl.end_col, line_length))
       end
-      
+
       if start_col < end_col then
-        vim.api.nvim_buf_add_highlight(0, -1, hl.hl_group, line_idx, start_col, end_col)
+        vim.api.nvim_buf_add_highlight(bufnr, -1, hl.hl_group, line_idx, start_col, end_col)
       end
     end
   end

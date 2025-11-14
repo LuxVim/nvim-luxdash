@@ -1,4 +1,11 @@
 local M = {}
+local text_utils = require('luxdash.utils.text')
+
+-- Constants for recent files section
+local MAX_FILES_LIMIT = 9  -- Maximum number of recent files to display
+local MIN_FILENAME_WIDTH = 3  -- Minimum width for filename display
+local MIN_PADDING = 2  -- Minimum padding between filename and key
+local ICON_SPACING = 2  -- Spacing after icon
 
 function M.render(width, height, config)
   -- Clear any existing keymaps for this section first
@@ -28,7 +35,7 @@ function M.render(width, height, config)
   
   -- Strictly limit max_files to prevent overflow
   -- Ensure we never exceed the allocated height regardless of configuration
-  max_files = math.min(max_files, available_height, 9)
+  max_files = math.min(max_files, available_height, MAX_FILES_LIMIT)
   -- Additional safety: ensure we have at least 1 line of height to work with
   if available_height <= 0 then
     max_files = 0
@@ -47,22 +54,24 @@ function M.render(width, height, config)
       
       -- Calculate exact width for filename to maintain alignment within content width
       -- Priority: icon + key + minimum padding must always fit
-      local icon_width = vim.fn.strwidth(icon .. '  ')
+      local icon_width = vim.fn.strwidth(icon .. string.rep(' ', ICON_SPACING))
       local key_width = vim.fn.strwidth(key_part)
-      local minimum_padding = 2 -- minimum padding between filename and key
-      local reserved_width = icon_width + key_width + minimum_padding
-      
+      local reserved_width = icon_width + key_width + MIN_PADDING
+
       -- Calculate available width for filename (ensure we always have space for key)
-      local available_filename_width = math.max(3, content_width - reserved_width) -- minimum 3 chars for filename
-      
-      -- Truncate filename to fit in available space
-      local display_name = M.truncate_filename_for_alignment(file, available_filename_width)
+      local available_filename_width = math.max(MIN_FILENAME_WIDTH, content_width - reserved_width)
+
+      -- Truncate filename to fit in available space using new text utils
+      local display_name = text_utils.truncate(file, available_filename_width, {
+        suffix = '...',
+        preserve_basename = true
+      })
       local actual_filename_width = vim.fn.strwidth(display_name)
       
       -- Calculate padding to fill remaining space
       local used_width = icon_width + actual_filename_width + key_width
-      local padding_length = math.max(minimum_padding, content_width - used_width)
-      
+      local padding_length = math.max(MIN_PADDING, content_width - used_width)
+
       -- Final safety check: if somehow we still exceed content width, reduce padding
       if used_width + padding_length > content_width then
         padding_length = math.max(1, content_width - used_width)
@@ -72,7 +81,7 @@ function M.render(width, height, config)
       
       -- Create line with multiple highlight sections (always preserving the key)
       local line_parts = {
-        {'LuxDashRecentIcon', icon .. '  '},
+        {'LuxDashRecentIcon', icon .. string.rep(' ', ICON_SPACING)},
         {'LuxDashRecentFile', display_name},
         {'Normal', padding},
         {'LuxDashRecentKey', key_part}
@@ -120,62 +129,6 @@ function M.get_recent_files(max_count)
   end
   
   return recent_files
-end
-
-function M.truncate_filename(filename, max_width)
-  if vim.fn.strwidth(filename) <= max_width then
-    return filename
-  end
-  
-  local parts = vim.split(filename, '/')
-  if #parts > 1 then
-    local basename = parts[#parts]
-    if vim.fn.strwidth(basename) <= max_width - 3 then
-      return '...' .. basename
-    end
-  end
-  
-  if max_width > 3 then
-    return filename:sub(1, max_width - 3) .. '...'
-  else
-    return filename:sub(1, max_width)
-  end
-end
-
-function M.truncate_filename_for_alignment(filename, max_width)
-  if max_width <= 0 then
-    return ""
-  end
-  
-  if vim.fn.strwidth(filename) <= max_width then
-    return filename
-  end
-  
-  -- Handle very small widths
-  if max_width <= 3 then
-    return string.rep('.', max_width)
-  end
-  
-  -- For better alignment, prefer showing the filename (basename) over the full path
-  local parts = vim.split(filename, '/')
-  local basename = parts[#parts] or filename
-  
-  -- If just the basename fits with "..." prefix, use that
-  local basename_width = vim.fn.strwidth(basename)
-  if basename_width <= max_width - 3 then
-    return '...' .. basename
-  end
-  
-  -- Otherwise, truncate the basename itself
-  local target_basename_width = max_width - 3
-  local truncated_basename = basename
-  
-  -- Simple truncation from the end to preserve start of filename
-  while vim.fn.strwidth(truncated_basename) > target_basename_width do
-    truncated_basename = truncated_basename:sub(1, -2)
-  end
-  
-  return '...' .. truncated_basename
 end
 
 -- File extension to icon mapping
@@ -294,6 +247,21 @@ end
 
 -- Store recent files keymaps in a global namespace to avoid conflicts
 local recent_files_keymaps = {}
+
+-- Setup autocmd to clean up keymaps when buffers are deleted
+local cleanup_group = vim.api.nvim_create_augroup('LuxDashRecentFilesCleanup', { clear = true })
+
+vim.api.nvim_create_autocmd('BufDelete', {
+  group = cleanup_group,
+  callback = function(args)
+    local buf = args.buf
+    -- Clean up keymap tracking for deleted buffer
+    if recent_files_keymaps[buf] then
+      recent_files_keymaps[buf] = nil
+    end
+  end,
+  desc = 'Clean up LuxDash recent files keymaps on buffer delete'
+})
 
 function M.clear_file_keymaps()
   local current_buf = vim.api.nvim_get_current_buf()

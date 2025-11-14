@@ -1,7 +1,7 @@
 local M = {}
 local cache = require('luxdash.core.cache')
 local highlight_pool = require('luxdash.core.highlight_pool')
-local width_utils = require('luxdash.utils.width')
+local text_utils = require('luxdash.utils.text')
 
 local color_presets = {
     blue = '#569cd6', green = '#4ec9b0', red = '#f44747', yellow = '#dcdcaa',

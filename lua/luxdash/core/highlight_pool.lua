@@ -49,22 +49,26 @@ function M.apply_highlight(line_idx, start_col, end_col, hl_group)
   vim.api.nvim_buf_add_highlight(0, ns, hl_group, line_idx, start_col, end_col)
 end
 
-function M.batch_apply_highlights(highlights, lines)
-  if not highlights or #highlights == 0 then
+---Batch apply highlights to buffer (grouped by namespace for performance)
+---@param bufnr number Buffer number
+---@param highlights table Array of highlight specifications
+---@param lines table Array of line text
+function M.batch_apply_highlights(bufnr, highlights, lines)
+  if not vim.api.nvim_buf_is_valid(bufnr) or not highlights or #highlights == 0 then
     return
   end
-  
+
   -- Group highlights by namespace type for better performance
   local grouped_highlights = {
     logo = {},
     menu = {},
     other = {}
   }
-  
+
   for _, hl in ipairs(highlights) do
     if hl.hl_group and hl.line_num and hl.start_col and hl.end_col then
       local line_idx = hl.line_num - 1
-      
+
       if line_idx >= 0 and line_idx < #lines then
         local namespace_type = 'other'
         if hl.hl_group:match('^LuxDashLogo') then
@@ -72,7 +76,7 @@ function M.batch_apply_highlights(highlights, lines)
         elseif hl.hl_group:match('^LuxDashMenu') then
           namespace_type = 'menu'
         end
-        
+
         table.insert(grouped_highlights[namespace_type], {
           line_idx = line_idx,
           start_col = math.max(0, hl.start_col),
@@ -83,22 +87,22 @@ function M.batch_apply_highlights(highlights, lines)
       end
     end
   end
-  
+
   -- Apply highlights by group
   for namespace_type, group_highlights in pairs(grouped_highlights) do
     if #group_highlights > 0 then
       local ns = M.get_namespace(namespace_type)
-      
+
       for _, hl in ipairs(group_highlights) do
         local start_col = hl.start_col
         local end_col = hl.end_col
-        
+
         -- Special handling for logo highlights
         if namespace_type == 'logo' then
           -- Logo highlights should span full window width for braille characters
           local winwidth = vim.api.nvim_win_get_width(0)
           end_col = winwidth
-          
+
           -- Ensure the line text actually has content to highlight
           local line_byte_width = vim.fn.strwidth(hl.line_text)
           if line_byte_width < winwidth then
@@ -112,9 +116,9 @@ function M.batch_apply_highlights(highlights, lines)
           start_col = math.min(start_col, line_length)
           end_col = math.min(end_col, line_length)
         end
-        
+
         if start_col < end_col then
-          vim.api.nvim_buf_add_highlight(0, ns, hl.hl_group, hl.line_idx, start_col, end_col)
+          vim.api.nvim_buf_add_highlight(bufnr, ns, hl.hl_group, hl.line_idx, start_col, end_col)
         end
       end
     end
