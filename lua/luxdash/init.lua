@@ -30,10 +30,14 @@ M.config = {
     '',
   },
   logo_color = {
-    row_gradient = {
-      start = '#ff7801',
-      bottom = '#db2dee'
-    }
+    -- Set auto_theme = true to automatically use colors from your current theme
+    -- Or manually specify colors with row_gradient, gradient, or preset
+    auto_theme = true,
+    -- Example manual gradient (disabled when auto_theme = true):
+    -- row_gradient = {
+    --   start = '#ff7801',
+    --   bottom = '#db2dee'
+    -- }
   },
   
   -- New modular section configuration

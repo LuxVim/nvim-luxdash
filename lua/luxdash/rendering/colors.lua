@@ -47,29 +47,50 @@ end
 
 function M.apply_logo_color(logo, color_config, window_width)
   if not color_config then return logo end
-  
+
+  -- Handle auto_theme option
+  local effective_config = color_config
+  local cache_config = color_config  -- Config used for cache key
+
+  if color_config.auto_theme then
+    local theme = require('luxdash.utils.theme')
+    local theme_gradient = theme.get_theme_gradient()
+
+    -- Use theme colors for the gradient
+    effective_config = {
+      row_gradient = {
+        start = theme_gradient.start,
+        bottom = theme_gradient.bottom
+      }
+    }
+
+    -- Use the actual theme colors for cache key (not just auto_theme=true)
+    -- This ensures cache is invalidated when theme changes
+    cache_config = effective_config
+  end
+
   -- Create cache key for logo processing
   local logo_hash = cache.hash_table(logo)
-  local color_hash = cache.hash_table(color_config)
-  
+  local color_hash = cache.hash_table(cache_config)
+
   -- Check cache first
   local cached_logo = cache.get_logo(logo_hash, color_hash, window_width)
   if cached_logo then
     return cached_logo
   end
-  
+
   local colored_logo = {}
-  
-  if color_config.row_gradient and color_config.row_gradient.start and color_config.row_gradient.bottom then
-    M.apply_row_gradient(logo, colored_logo, color_config.row_gradient)
-  elseif color_config.gradient and color_config.gradient.top and color_config.gradient.bottom then
-    M.apply_gradient(logo, colored_logo, color_config.gradient)
-  elseif color_config.preset then
-    M.apply_preset(logo, colored_logo, color_config.preset)
+
+  if effective_config.row_gradient and effective_config.row_gradient.start and effective_config.row_gradient.bottom then
+    M.apply_row_gradient(logo, colored_logo, effective_config.row_gradient)
+  elseif effective_config.gradient and effective_config.gradient.top and effective_config.gradient.bottom then
+    M.apply_gradient(logo, colored_logo, effective_config.gradient)
+  elseif effective_config.preset then
+    M.apply_preset(logo, colored_logo, effective_config.preset)
   else
     return logo
   end
-  
+
   -- Cache the result
   cache.set_logo(colored_logo, logo_hash, color_hash, window_width)
   return colored_logo
