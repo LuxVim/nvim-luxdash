@@ -1,0 +1,63 @@
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vim/
+.nvim/
+Session.vim
+.netrwhist
+
+# Lua and Luarocks
+luac.out
+*.luac
+*.o
+*.so
+*.dylib
+.luarocks/
+rocks-*/
+
+# Testing
+.busted
+*.tmp
+*.log
+
+# Build artifacts
+build/
+dist/
+*.tar.gz
+*.zip
+
+# Dependencies
+vendor/
+node_modules/
+deps/
+
+# Generated documentation
+doc/tags
+.cache/
+
+# Temporary files
+tmp/
+temp/
+*.bak
+*.backup
+
+# Tags
+tags
+tags.lock
+tags.temp
