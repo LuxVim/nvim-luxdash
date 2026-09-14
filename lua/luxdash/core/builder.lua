@@ -95,7 +95,8 @@ function M.render_main_section(context, layout_data)
     section_module,
     layout_data.main.width,
     layout_data.main.height,
-    render_config
+    render_config,
+    context
   )
 
   if not ok then
@@ -176,7 +177,8 @@ function M.render_bottom_sections(context, layout_data)
         section_module,
         section_layout.width,
         section_layout.height,
-        render_config
+        render_config,
+        context
       )
 
       if not render_ok then

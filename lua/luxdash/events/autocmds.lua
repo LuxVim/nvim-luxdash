@@ -3,6 +3,19 @@ local M = {}
 function M.setup()
   local window_tracker = require('luxdash.utils.window_tracker')
   local group = vim.api.nvim_create_augroup('LuxDash', { clear = true })
+  local directory_refresh_pending = false
+  vim.api.nvim_create_autocmd('DirChanged', {
+    group = group,
+    callback = function()
+      if directory_refresh_pending then return end
+      directory_refresh_pending = true
+      vim.schedule(function()
+        directory_refresh_pending = false
+        require('luxdash.core.resizer').resize_immediate()
+      end)
+    end,
+    desc = 'Refresh recent files in each dashboard directory',
+  })
   
   vim.api.nvim_create_autocmd('VimEnter', {
     group = group,

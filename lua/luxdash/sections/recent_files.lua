@@ -8,9 +8,10 @@ local MIN_FILENAME_WIDTH = 3  -- Minimum width for filename display
 local MIN_PADDING = 2  -- Minimum padding between filename and key
 local ICON_SPACING = 2  -- Spacing after icon
 
-function M.render(width, height, config)
+function M.render(width, height, config, context)
   -- Clear any existing keymaps for this section first
-  M.clear_file_keymaps()
+  local bufnr = context and context.bufnr
+  if bufnr then M.clear_file_keymaps(bufnr) end
   
   local max_files = config.max_files or 10
   
@@ -42,14 +43,15 @@ function M.render(width, height, config)
     max_files = 0
   end
   
-  local recent_files = M.get_recent_files(max_files)
+  local recent_files = M.get_recent_entries(max_files, context and context.cwd)
   
   local content = {}
   
   if #recent_files == 0 then
     table.insert(content, {'LuxDashComment', 'No recent files'})
   else
-    for i, file in ipairs(recent_files) do
+    for i, entry in ipairs(recent_files) do
+      local file = entry.label
       local icon = icons.get_file_icon(file)
       local key_part = '[' .. tostring(i) .. ']'
       
@@ -91,7 +93,7 @@ function M.render(width, height, config)
       table.insert(content, line_parts)
       
       -- Set up numerical keymap to open the file
-      M.setup_file_keymap(i, file)
+      if bufnr then M.setup_file_keymap(i, entry.path, bufnr) end
     end
   end
   
@@ -108,11 +110,11 @@ function M.render(width, height, config)
   return content
 end
 
-function M.get_recent_files(max_count)
+function M.get_recent_entries(max_count, cwd)
   local recent_files = {}
   
   local oldfiles = vim.v.oldfiles or {}
-  local cwd = vim.fn.getcwd()
+  cwd = cwd or vim.fn.getcwd()
   local count = 0
   
   for _, file in ipairs(oldfiles) do
@@ -122,14 +124,20 @@ function M.get_recent_files(max_count)
     
     if vim.fn.filereadable(file) == 1 then
       if vim.startswith(file, cwd) then
-        local relative_path = vim.fn.fnamemodify(file, ':.')
-        table.insert(recent_files, relative_path)
+        local full_path = vim.fn.fnamemodify(file, ':p')
+        local prefix = cwd:gsub('/+$', '') .. '/'
+        local label = vim.startswith(full_path, prefix) and full_path:sub(#prefix + 1) or full_path
+        table.insert(recent_files, { path = full_path, label = label })
         count = count + 1
       end
     end
   end
   
   return recent_files
+end
+
+function M.get_recent_files(max_count, cwd)
+  return vim.tbl_map(function(entry) return entry.label end, M.get_recent_entries(max_count, cwd))
 end
 
 -- Store recent files keymaps in a global namespace to avoid conflicts
@@ -150,11 +158,11 @@ vim.api.nvim_create_autocmd('BufDelete', {
   desc = 'Clean up LuxDash recent files keymaps on buffer delete'
 })
 
-function M.clear_file_keymaps()
-  local current_buf = vim.api.nvim_get_current_buf()
+function M.clear_file_keymaps(bufnr)
+  local current_buf = bufnr or vim.api.nvim_get_current_buf()
   
   -- Only clear if we're in a luxdash buffer and have stored keymaps
-  if vim.bo[current_buf].filetype == 'luxdash' and recent_files_keymaps[current_buf] then
+  if vim.api.nvim_buf_is_valid(current_buf) and recent_files_keymaps[current_buf] then
     -- Clear only the keymaps we set for recent files
     for key, _ in pairs(recent_files_keymaps[current_buf]) do
       pcall(vim.keymap.del, 'n', key, { buffer = current_buf })
@@ -163,30 +171,27 @@ function M.clear_file_keymaps()
   end
 end
 
-function M.setup_file_keymap(index, filepath)
+function M.setup_file_keymap(index, filepath, bufnr)
   local key = tostring(index)
   
   -- Get the current buffer to ensure we're setting the keymap on the correct buffer
-  local current_buf = vim.api.nvim_get_current_buf()
+  local current_buf = bufnr or vim.api.nvim_get_current_buf()
+  local full_path = vim.fn.fnamemodify(filepath, ':p')
   
   -- Only set keymap if we're in a luxdash buffer
-  if vim.bo[current_buf].filetype == 'luxdash' then
+  if current_buf > 0 and vim.api.nvim_buf_is_valid(current_buf) and vim.bo[current_buf].filetype == 'luxdash' then
     -- Initialize keymap storage for this buffer if not exists
     if not recent_files_keymaps[current_buf] then
       recent_files_keymaps[current_buf] = {}
     end
     
     -- Store the keymap reference to track what we set
-    recent_files_keymaps[current_buf][key] = filepath
+    recent_files_keymaps[current_buf][key] = full_path
     
     vim.keymap.set('n', key, function()
-      -- Request float manager close via event bus (avoids circular dependency)
-      local bus = require('luxdash.events.bus')
-      bus.emit('request_close')
-
       -- Open the file in current window
-      local full_path = vim.fn.fnamemodify(filepath, ':p')
       if vim.fn.filereadable(full_path) == 1 then
+        require('luxdash.events.bus').emit('request_close')
         vim.cmd('edit ' .. vim.fn.fnameescape(full_path))
       else
         vim.notify('File not found: ' .. filepath, vim.log.levels.WARN)
@@ -205,16 +210,7 @@ local bus = require('luxdash.events.bus')
 -- Listen for float closing events to cleanup keymaps
 bus.on('float_closing', function(bufnr)
   if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-    vim.schedule(function()
-      if vim.api.nvim_buf_is_valid(bufnr) then
-        local old_buf = vim.api.nvim_get_current_buf()
-        pcall(vim.api.nvim_set_current_buf, bufnr)
-        pcall(M.clear_file_keymaps)
-        if vim.api.nvim_buf_is_valid(old_buf) then
-          pcall(vim.api.nvim_set_current_buf, old_buf)
-        end
-      end
-    end)
+    M.clear_file_keymaps(bufnr)
   end
 end)
 

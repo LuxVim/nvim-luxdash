@@ -32,6 +32,7 @@ function M.create(opts)
     -- Buffer and window handles
     bufnr = opts.bufnr,
     winid = opts.winid,
+    cwd = opts.cwd or vim.fn.getcwd(),
 
     -- Metadata
     metadata = {
@@ -101,12 +102,14 @@ function M.from_window(winid, config)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
   local bufnr = vim.api.nvim_win_get_buf(winid)
+  local location = vim.fn.win_id2tabwin(winid)
 
   return M.create({
     config = config,
     width = width,
     height = height,
     winid = winid,
+    cwd = vim.fn.getcwd(location[2], location[1]),
     bufnr = bufnr
   })
 end
