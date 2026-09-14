@@ -13,8 +13,10 @@ function M.command()
         vim.cmd('Telescope find_files')
       elseif vim.fn.exists(':FzfLua') > 0 then
         vim.cmd('FzfLua files')
+      elseif vim.fn.exists(':Files') > 0 then
+        vim.cmd('Files')
       else
-        vim.cmd('edit .')
+        vim.notify('No file finder available. Install fzf.vim, fzf-lua, or Telescope.', vim.log.levels.WARN)
       end
     end
   }
