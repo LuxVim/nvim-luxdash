@@ -161,7 +161,7 @@ function M.render_bottom_sections(context, layout_data)
         local menu = require('luxdash.utils.menu')
         if render_config.menu_items and type(render_config.menu_items[1]) == 'string' then
           -- Convert string array to processed menu items
-          render_config.menu_items = menu.options(render_config.menu_items)
+          render_config.menu_items = menu.options(render_config.menu_items, context.bufnr)
         end
       end
 
