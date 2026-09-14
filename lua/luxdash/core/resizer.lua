@@ -21,13 +21,6 @@ function M.resize_immediate()
   colors.clear_color_cache()
 
   local current_win = vim.api.nvim_get_current_win()
-  local current_win_config = vim.api.nvim_win_get_config(current_win)
-
-  -- Don't interfere if user is currently in a floating window
-  if current_win_config.relative ~= '' then
-    return
-  end
-
   for _, winnr in ipairs(vim.api.nvim_list_wins()) do
     if vim.api.nvim_win_is_valid(winnr) then
       local bufnr = vim.api.nvim_win_get_buf(winnr)

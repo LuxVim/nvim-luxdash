@@ -21,7 +21,8 @@ function M.build(context)
   local height = context.dimensions.height
 
   -- Apply buffer padding with validation
-  local padding = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
+  local padding = vim.deepcopy(config.padding or { left = 2, right = 2, top = 1, bottom = 1 })
+  context.padding = padding
 
   -- Validate padding values
   vim.validate({
@@ -39,6 +40,12 @@ function M.build(context)
 
   local content_width = math.max(1, width - padding.left - padding.right)
   local content_height = math.max(1, height - padding.top - padding.bottom)
+
+  if width < 110 or height < 36 then
+    require('luxdash.core.compact').build(context, content_width, content_height)
+    context:increment_render_count()
+    return
+  end
 
   local layout_data = layout.calculate_layout(content_height, content_width, config.layout_config)
 
@@ -95,7 +102,8 @@ function M.render_main_section(context, layout_data)
     section_module,
     layout_data.main.width,
     layout_data.main.height,
-    render_config
+    render_config,
+    context
   )
 
   if not ok then
@@ -161,7 +169,9 @@ function M.render_bottom_sections(context, layout_data)
         local menu = require('luxdash.utils.menu')
         if render_config.menu_items and type(render_config.menu_items[1]) == 'string' then
           -- Convert string array to processed menu items
-          render_config.menu_items = menu.options(render_config.menu_items)
+          local title_height = render_config.title and render_config.show_title ~= false and
+            (1 + (render_config.show_underline ~= false and 1 or 0) + (render_config.title_spacing ~= false and 1 or 0)) or 0
+          render_config.menu_items = menu.options(render_config.menu_items, context.bufnr, math.max(0, section_layout.height - title_height))
         end
       end
 
@@ -176,7 +186,8 @@ function M.render_bottom_sections(context, layout_data)
         section_module,
         section_layout.width,
         section_layout.height,
-        render_config
+        render_config,
+        context
       )
 
       if not render_ok then

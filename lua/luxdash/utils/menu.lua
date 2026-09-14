@@ -4,11 +4,29 @@ local icons = require('luxdash.utils.icons')
 
 local menu_options = {}
 local menu_width = 30
+local keymaps = {}
 
-function M.options(modules)
+function M.clear(bufnr)
+  if not bufnr then return end
+  for key in pairs(keymaps[bufnr] or {}) do
+    pcall(vim.keymap.del, 'n', key, { buffer = bufnr })
+  end
+  keymaps[bufnr] = nil
+end
+
+vim.api.nvim_create_autocmd('BufDelete', { callback = function(args) keymaps[args.buf] = nil end })
+
+---Render menu items and bind their actions to an explicit dashboard buffer.
+---@param modules string[]
+---@param bufnr? integer Missing or stale targets render without installing mappings.
+function M.options(modules, bufnr, max_items)
   menu_options = {}
+  local can_bind = type(bufnr) == 'number' and bufnr > 0
+    and vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].filetype == 'luxdash'
+  if can_bind then M.clear(bufnr); keymaps[bufnr] = {} end
   
   for _, name in ipairs(modules) do
+    if #menu_options >= (max_items or math.huge) then break end
     local info = M.get_option(name)
     
     if info.keymap and info.keymap ~= '' and info.command then
@@ -32,18 +50,15 @@ function M.options(modules)
       
       table.insert(menu_options, line_parts)
       
-      if type(info.command) == 'function' then
-        vim.keymap.set('n', info.keymap, info.command, { 
-          buffer = true, 
-          silent = true 
-        })
-      else
-        vim.keymap.set('n', info.keymap, function()
-          vim.cmd(info.command)
-        end, { 
-          buffer = true, 
-          silent = true 
-        })
+      if can_bind then
+        local command = info.command
+        if type(command) ~= 'function' then
+          command = function()
+            vim.cmd(info.command)
+          end
+        end
+        vim.keymap.set('n', info.keymap, command, { buffer = bufnr, silent = true })
+        keymaps[bufnr][info.keymap] = true
       end
     end
   end

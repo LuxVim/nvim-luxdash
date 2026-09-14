@@ -1,6 +1,7 @@
 ---Width normalization utilities
 ---Ensures lines are exactly the target width by padding or truncating
 local M = {}
+local text_utils = require('luxdash.utils.text')
 
 ---Ensure a line is exactly the target width
 ---Handles complex format {{hl, text}, ...}, simple format {hl, text}, and plain text
@@ -44,7 +45,7 @@ function M.ensure_exact_width(line, target_width)
     if text_width < target_width then
       return {line[1], text .. string.rep(' ', target_width - text_width)}
     elseif text_width > target_width then
-      return {line[1], vim.fn.strpart(text, 0, target_width)}
+      return {line[1], text_utils.truncate_chars(text, target_width)}
     end
     return line
   else
@@ -54,7 +55,7 @@ function M.ensure_exact_width(line, target_width)
     if text_width < target_width then
       return text .. string.rep(' ', target_width - text_width)
     elseif text_width > target_width then
-      return vim.fn.strpart(text, 0, target_width)
+      return text_utils.truncate_chars(text, target_width)
     end
     return text
   end
@@ -105,7 +106,7 @@ function M.truncate_complex_format(line, target_width)
         -- Part needs to be truncated
         local chars_to_take = available_width - accumulated_width
         if chars_to_take > 0 then
-          local truncated_text = vim.fn.strpart(part_text, 0, chars_to_take)
+          local truncated_text = text_utils.truncate_chars(part_text, chars_to_take)
           table.insert(truncated_line, {part[1], truncated_text})
           accumulated_width = available_width
         end

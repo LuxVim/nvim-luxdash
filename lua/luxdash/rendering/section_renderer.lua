@@ -2,7 +2,7 @@ local M = {}
 local alignment = require('luxdash.rendering.alignment')
 
 -- Standardized section renderer that handles title, underline, and content with proper alignment
-function M.render_section(section_module, width, height, config)
+function M.render_section(section_module, width, height, config, context)
   config = config or {}
   
   -- Section type determines highlight groups
@@ -32,7 +32,7 @@ function M.render_section(section_module, width, height, config)
   -- Get content from the section module
   local raw_content = {}
   if section_module and section_module.render then
-    raw_content = section_module.render(width, height, config) or {}
+    raw_content = section_module.render(width, height, config, context) or {}
   end
   
   -- Build structured content
