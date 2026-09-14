@@ -2,6 +2,8 @@ local M = {}
 
 local float_win = nil
 local float_buf = nil
+local origin_win = nil
+local render_generation = 0
 
 M.config = {
   width = 0.9,
@@ -26,9 +28,13 @@ function M.close()
   -- Store window handle before any operations that might invalidate it
   local win_to_close = float_win
   local buf_to_cleanup = float_buf
+  local restore_focus = win_to_close == vim.api.nvim_get_current_win()
+  local return_win = origin_win
 
   -- Clear state immediately to prevent re-entrance
   float_win = nil
+  origin_win = nil
+  render_generation = render_generation + 1
 
   -- Validate window still exists before attempting close
   if win_to_close and vim.api.nvim_win_is_valid(win_to_close) then
@@ -40,6 +46,9 @@ function M.close()
 
     -- Close window with protection
     pcall(vim.api.nvim_win_close, win_to_close, true)
+  end
+  if restore_focus and return_win and vim.api.nvim_win_is_valid(return_win) then
+    vim.api.nvim_set_current_win(return_win)
   end
 
   -- Handle buffer cleanup
@@ -72,7 +81,7 @@ function M.create_buffer()
 end
 
 function M.calculate_dimensions()
-  local ui = vim.api.nvim_list_uis()[1]
+  local ui = vim.api.nvim_list_uis()[1] or { width = vim.o.columns, height = vim.o.lines }
   local width, height
   
   if M.config.width <= 1 then
@@ -87,8 +96,10 @@ function M.calculate_dimensions()
     height = math.min(M.config.height, ui.height - 4)
   end
   
-  local row = math.floor((ui.height - height) / 2)
-  local col = math.floor((ui.width - width) / 2)
+  width = math.max(1, math.min(width, ui.width - 2))
+  height = math.max(1, math.min(height, ui.height - vim.o.cmdheight - 2))
+  local row = math.max(0, math.floor((ui.height - height - 2) / 2))
+  local col = math.max(0, math.floor((ui.width - width - 2) / 2))
   
   return {
     width = width,
@@ -103,6 +114,7 @@ function M.open()
     return
   end
   
+  origin_win = vim.api.nvim_get_current_win()
   local buf = M.create_buffer()
   local dimensions = M.calculate_dimensions()
   
@@ -124,6 +136,7 @@ function M.open()
   M.configure_window()
   M.setup_autocmds(buf)
   M.setup_keymaps(buf)
+  M.render()
   
   return float_win, buf
 end
@@ -140,12 +153,13 @@ end
 
 function M.setup_autocmds(buf)
   local group = vim.api.nvim_create_augroup('LuxDashFloat', { clear = true })
+  local win = float_win
   
   vim.api.nvim_create_autocmd('WinClosed', {
     group = group,
     pattern = tostring(float_win),
     callback = function()
-      M.close()
+      if float_win == win then M.close() end
       vim.api.nvim_del_augroup_by_id(group)
     end,
     once = true
@@ -170,13 +184,19 @@ function M.toggle()
     M.close()
   else
     M.open()
-    vim.schedule(function()
-      local builder = require('luxdash.core.builder')
-      local renderer = require('luxdash.core.renderer')
-      builder.build()
-      renderer.draw()
-    end)
   end
+end
+
+function M.render()
+  render_generation = render_generation + 1
+  local generation, win, buf = render_generation, float_win, float_buf
+  vim.schedule(function()
+    if generation ~= render_generation or win ~= float_win or not M.is_open()
+      or not vim.api.nvim_buf_is_valid(buf) or vim.api.nvim_win_get_buf(win) ~= buf then return end
+    local context = require('luxdash.core.context').from_window(win, require('luxdash').config)
+    require('luxdash.core.builder').build(context)
+    require('luxdash.core.renderer').draw(context)
+  end)
 end
 
 function M.resize()
@@ -194,8 +214,7 @@ function M.resize()
     col = dimensions.col
   })
   
-  local resizer = require('luxdash.core.resizer')
-  resizer.resize()
+  M.render()
 end
 
 -- Register event handlers to avoid circular dependencies
