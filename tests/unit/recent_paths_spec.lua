@@ -1,0 +1,31 @@
+require('tests.helpers').setup_plugin()
+local recent = require('luxdash.sections.recent_files')
+
+describe('project recent paths', function()
+  it('requires a directory boundary after the project root', function()
+    assert.equals('src/a.lua', recent.relative_under_root('/tmp/project/src/a.lua', '/tmp/project'))
+    assert.is_nil(recent.relative_under_root('/tmp/project-other/a.lua', '/tmp/project'))
+    assert.is_nil(recent.relative_under_root('/tmp/projectile/a.lua', '/tmp/project'))
+  end)
+  it('normalizes separators and trailing slashes without losing root paths', function()
+    assert.equals('a.lua', recent.relative_under_root('/tmp/project/./a.lua', '/tmp/project/'))
+    assert.equals('tmp/a.lua', recent.relative_under_root('/tmp/a.lua', '/'))
+    assert.equals('a.lua', recent.relative_under_root('C:\\Project\\a.lua', 'c:/project/'))
+    assert.is_nil(recent.relative_under_root('C:\\Project-other\\a.lua', 'c:/project'))
+  end)
+  it('filters a readable sibling file from the actual recent list', function()
+    local root = vim.fn.tempname() .. ' project'
+    local history = vim.v.oldfiles
+    vim.fn.mkdir(root, 'p')
+    vim.fn.mkdir(root .. '-other', 'p')
+    vim.fn.writefile({ 'inside' }, root .. '/a.lua')
+    vim.fn.writefile({ 'outside' }, root .. '-other/a.lua')
+    vim.v.oldfiles = { root .. '-other/a.lua', root .. '/a.lua' }
+    local entries = recent.get_recent_entries(9, root)
+    vim.v.oldfiles = history
+    vim.fn.delete(root, 'rf')
+    vim.fn.delete(root .. '-other', 'rf')
+    assert.equals(1, #entries)
+    assert.equals(root .. '/a.lua', entries[1].path)
+  end)
+end)

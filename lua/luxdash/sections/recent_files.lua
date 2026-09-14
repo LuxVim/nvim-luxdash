@@ -110,6 +110,21 @@ function M.render(width, height, config, context)
   return content
 end
 
+function M.relative_under_root(file, root)
+  local windows = vim.fn.has('win32') == 1 or root:match('^%a:[/\\]') or root:match('^\\\\')
+  if windows then
+    file, root = file:gsub('\\', '/'), root:gsub('\\', '/')
+  end
+  file = vim.fs.normalize(file, { expand_env = false })
+  root = vim.fs.normalize(root, { expand_env = false }):gsub('/+$', '')
+  local prefix = root .. '/'
+  local compared_file, compared_prefix = file, prefix
+  if windows then compared_file, compared_prefix = file:lower(), prefix:lower() end
+  if compared_file:sub(1, #compared_prefix) == compared_prefix then
+    return file:sub(#prefix + 1)
+  end
+end
+
 function M.get_recent_entries(max_count, cwd)
   local recent_files = {}
   
@@ -123,10 +138,9 @@ function M.get_recent_entries(max_count, cwd)
     end
     
     if vim.fn.filereadable(file) == 1 then
-      if vim.startswith(file, cwd) then
-        local full_path = vim.fn.fnamemodify(file, ':p')
-        local prefix = cwd:gsub('/+$', '') .. '/'
-        local label = vim.startswith(full_path, prefix) and full_path:sub(#prefix + 1) or full_path
+      local full_path = vim.fn.fnamemodify(file, ':p')
+      local label = M.relative_under_root(full_path, cwd)
+      if label then
         table.insert(recent_files, { path = full_path, label = label })
         count = count + 1
       end
