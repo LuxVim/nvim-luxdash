@@ -59,7 +59,7 @@ function M.print(context, bufnr, winid)
   local dashboard = context.dashboard:get_lines()
 
   -- Apply buffer padding
-  local padding = config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
+  local padding = context.padding or config.padding or { left = 2, right = 2, top = 1, bottom = 1 }
   local content_width = width - padding.left - padding.right
   local content_height = height - padding.top - padding.bottom
   
